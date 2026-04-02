@@ -1,0 +1,27 @@
+{
+  "name": "clay-backend-plugin",
+  "description": "Store, search, and analyze patterns across your Clay data. Import CSV/JSON exports and let Claude find insights across records.",
+  "version": "0.1.0",
+  "author": {
+    "name": "Gabriel Garavit"
+  },
+  "license": "MIT",
+  "keywords": ["clay", "aggregation", "embeddings", "sales", "analysis"],
+  "userConfig": {
+    "OPENAI_API_KEY": {
+      "description": "OpenAI API key for embeddings (optional — falls back to local model)",
+      "sensitive": true,
+      "required": false
+    },
+    "EMBEDDING_PROVIDER": {
+      "description": "Embedding provider: 'openai' or 'local'",
+      "default": "local",
+      "required": false
+    },
+    "WEBHOOK_PORT": {
+      "description": "Port for the webhook HTTP server (Clay sends data here)",
+      "default": "8742",
+      "required": false
+    }
+  }
+}
