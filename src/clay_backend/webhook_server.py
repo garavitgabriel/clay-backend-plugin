@@ -24,8 +24,29 @@ logger = logging.getLogger(__name__)
 DEFAULT_PORT = 8742
 
 
+def _check_auth(request: Request) -> JSONResponse | None:
+    """Verify API key if WEBHOOK_API_KEY is set. Returns error response or None."""
+    api_key = os.environ.get("WEBHOOK_API_KEY", "")
+    if not api_key:
+        return None
+
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header == f"Bearer {api_key}":
+        return None
+
+    # Also accept X-API-Key header (common in webhook configs)
+    if request.headers.get("X-API-Key", "") == api_key:
+        return None
+
+    return JSONResponse({"error": "Unauthorized"}, status_code=401)
+
+
 async def handle_webhook(request: Request) -> JSONResponse:
     """Accept a Clay webhook payload and store the record."""
+    auth_error = _check_auth(request)
+    if auth_error:
+        return auth_error
+
     try:
         body = await request.json()
     except Exception:

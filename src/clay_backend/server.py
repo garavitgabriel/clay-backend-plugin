@@ -233,7 +233,9 @@ def get_webhook_url() -> dict:
     import os
 
     port = int(os.environ.get("WEBHOOK_PORT", "8742"))
-    return {
+    api_key = os.environ.get("WEBHOOK_API_KEY", "")
+
+    info: dict = {
         "webhook_url": f"http://localhost:{port}/webhook",
         "health_url": f"http://localhost:{port}/health",
         "method": "POST",
@@ -244,8 +246,26 @@ def get_webhook_url() -> dict:
             "entity_id": "{{Deal ID}}  (optional)",
             "entity_name": "{{Company Name}}  (optional)",
         },
-        "note": "For external access (Clay cloud → local machine), use ngrok or similar tunnel.",
     }
+
+    if api_key:
+        info["authentication"] = {
+            "type": "Bearer token or X-API-Key header",
+            "header": f"Authorization: Bearer {api_key}",
+            "clay_setup": (
+                "In Clay's HTTP API column, add a header: "
+                f"Authorization = Bearer {api_key}"
+            ),
+        }
+    else:
+        info["authentication"] = "None (set WEBHOOK_API_KEY to require auth)"
+
+    info["external_access"] = (
+        "For Clay cloud → local machine, run: ngrok http "
+        f"{port} — then use the ngrok URL in Clay."
+    )
+
+    return info
 
 
 def main():

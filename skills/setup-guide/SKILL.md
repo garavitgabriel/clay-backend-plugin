@@ -55,6 +55,18 @@ The plugin runs a webhook server that Clay can POST to automatically.
 
 **Note**: By default, the webhook server runs while Claude Code is open. For 24/7 collection (even when Claude Code is closed), see "Always-On Mode" below.
 
+### Exposing to Clay Cloud (ngrok)
+
+Clay runs in the cloud, so it can't reach `localhost` directly. Use ngrok to create a secure tunnel:
+
+1. Install ngrok: `brew install ngrok` (Mac) or download from ngrok.com
+2. Sign up for a free ngrok account and run `ngrok config add-authtoken <your-token>`
+3. Start the tunnel: `ngrok http 8742`
+4. Copy the ngrok URL (e.g., `https://abc123.ngrok-free.app`)
+5. In Clay, use `https://abc123.ngrok-free.app/webhook` as the URL
+
+**Important**: When exposing via ngrok, set `WEBHOOK_API_KEY` in the plugin config to protect the endpoint. Then in Clay's HTTP API column, add a header: `Authorization: Bearer <your-key>`. Call `get_webhook_url` to see the exact header to use.
+
 ## After Import
 
 Once your data is imported, you can:

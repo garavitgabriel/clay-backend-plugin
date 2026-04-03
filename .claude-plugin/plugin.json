@@ -22,6 +22,11 @@
       "description": "Port for the webhook HTTP server (Clay sends data here)",
       "default": "8742",
       "required": false
+    },
+    "WEBHOOK_API_KEY": {
+      "description": "API key to protect the webhook endpoint (required when exposing via ngrok)",
+      "sensitive": true,
+      "required": false
     }
   }
 }

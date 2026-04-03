@@ -68,6 +68,7 @@ webhook_server.py (HTTP POST /webhook)  ←→  services/record_service.py (same
 | `EMBEDDING_PROVIDER` | `openai`, `local`, or empty (disabled) | empty |
 | `OPENAI_API_KEY` | Required if EMBEDDING_PROVIDER=openai | — |
 | `WEBHOOK_PORT` | HTTP webhook server port | `8742` |
+| `WEBHOOK_API_KEY` | If set, webhook requires `Authorization: Bearer <key>` or `X-API-Key: <key>` | — |
 
 ## Embedding Providers
 

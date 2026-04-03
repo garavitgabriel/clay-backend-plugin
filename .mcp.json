@@ -8,7 +8,8 @@
         "CLAY_DATA_DIR": "${CLAUDE_PLUGIN_DATA}",
         "OPENAI_API_KEY": "${user_config.OPENAI_API_KEY}",
         "EMBEDDING_PROVIDER": "${user_config.EMBEDDING_PROVIDER}",
-        "WEBHOOK_PORT": "${user_config.WEBHOOK_PORT}"
+        "WEBHOOK_PORT": "${user_config.WEBHOOK_PORT}",
+        "WEBHOOK_API_KEY": "${user_config.WEBHOOK_API_KEY}"
       }
     }
   }

@@ -65,6 +65,23 @@ In Clay, add an **HTTP API** enrichment column to your table:
 
 Each time Clay processes a row, the result flows into the plugin automatically.
 
+**Connecting Clay Cloud to your local machine:**
+
+Clay runs in the cloud, so it can't reach `localhost` directly. Use [ngrok](https://ngrok.com) to create a secure tunnel:
+
+```bash
+# Install and authenticate (one-time)
+brew install ngrok
+ngrok config add-authtoken <your-token>    # free account at ngrok.com
+
+# Start tunnel
+ngrok http 8742
+```
+
+Use the ngrok URL (e.g., `https://abc123.ngrok-free.app/webhook`) in Clay instead of localhost.
+
+**Security:** Set `WEBHOOK_API_KEY` in the plugin config when exposing via ngrok. The webhook endpoint will require `Authorization: Bearer <key>` on all requests. Ask Claude "what's the webhook URL?" — it will show the exact header to add in Clay.
+
 ### Option 2: CSV Import
 
 Export your Clay table as CSV, then:
