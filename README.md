@@ -275,6 +275,41 @@ Webhook: http://localhost:8742/webhook
 
 ---
 
+## Hosted Mode (Optional)
+
+Don't want to deal with ngrok? Deploy the webhook receiver as a tiny hosted service and get a permanent URL.
+
+**One-click deploy:**
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.app/template) <!-- TODO: add template link -->
+
+**Or deploy manually:**
+```bash
+cd hosted/
+# Set DATABASE_URL to a PostgreSQL instance
+# Set API_KEY for authentication
+docker build -t clay-backend .
+docker run -p 8000:8000 -e DATABASE_URL=... -e API_KEY=... clay-backend
+```
+
+Then configure the plugin to use remote mode:
+```
+REMOTE_URL=https://your-app.railway.app
+REMOTE_API_KEY=your-api-key
+```
+
+In remote mode, the plugin queries the hosted service instead of local SQLite. No local webhook server, no ngrok — Clay posts directly to your permanent URL.
+
+| | Local Mode | Remote Mode |
+|--|-----------|-------------|
+| Storage | SQLite on your machine | PostgreSQL on server |
+| Webhook URL | localhost (needs ngrok) | Permanent public URL |
+| Semantic search | Embeddings via OpenAI/local | Text search (embeddings coming) |
+| Cost | Free | ~$5/mo (Railway/Render) |
+| Always-on | Needs daemon running | Yes, 24/7 |
+
+---
+
 ## Development
 
 ```bash
@@ -301,7 +336,8 @@ uv run pytest
 - [x] Standalone webhook daemon (24/7 collection)
 - [x] Skills for guided import and analysis
 - [x] Synthesis agent for deep cross-record analysis
-- [ ] Hosted backend option (FastAPI + PostgreSQL) for teams
+- [x] Hosted backend option (FastAPI + PostgreSQL) with one-click deploy
+- [ ] Embeddings support in hosted mode (pgvector)
 
 ## License
 

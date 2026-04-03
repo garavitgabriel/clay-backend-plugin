@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: clay-backend
+    runtime: docker
+    dockerfilePath: hosted/Dockerfile
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: clay-db
+          property: connectionString
+      - key: API_KEY
+        generateValue: true
+    healthCheckPath: /health
+
+databases:
+  - name: clay-db
+    plan: free

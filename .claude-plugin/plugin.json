@@ -24,7 +24,16 @@
       "required": false
     },
     "WEBHOOK_API_KEY": {
-      "description": "API key to protect the webhook endpoint (required when exposing via ngrok)",
+      "description": "API key to protect the webhook endpoint (local mode with ngrok)",
+      "sensitive": true,
+      "required": false
+    },
+    "REMOTE_URL": {
+      "description": "URL of hosted Clay backend service (e.g. https://your-app.railway.app). If set, plugin uses remote mode instead of local SQLite.",
+      "required": false
+    },
+    "REMOTE_API_KEY": {
+      "description": "API key for the hosted service",
       "sensitive": true,
       "required": false
     }

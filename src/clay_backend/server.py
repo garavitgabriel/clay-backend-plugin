@@ -6,7 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from .database import init_db
 from .models import RecordInput
-from .services import record_service, search_service
+from .services import record_service, remote_service, search_service
 
 mcp = FastMCP(
     name="clay-backend",
@@ -35,6 +35,9 @@ def ingest_records(
     embed_fields: list[str] | None = None,
 ) -> dict:
     """Import records from Clay."""
+    if remote_service.is_remote():
+        return remote_service.ingest_records(records, embed_fields)
+
     parsed = []
     errors = []
     for i, rec in enumerate(records):
@@ -72,6 +75,16 @@ def ingest_csv(
 ) -> dict:
     """Import records from a CSV file."""
     try:
+        if remote_service.is_remote():
+            return remote_service.ingest_csv(
+                file_path=file_path,
+                record_id_column=record_id_column,
+                analysis_type=analysis_type,
+                data_columns=data_columns,
+                entity_id_column=entity_id_column,
+                entity_name_column=entity_name_column,
+                embed_fields=embed_fields,
+            )
         result = record_service.ingest_csv(
             file_path=file_path,
             record_id_column=record_id_column,
@@ -108,6 +121,17 @@ def query_records(
     offset: int = 0,
 ) -> list[dict]:
     """Query records with filters."""
+    if remote_service.is_remote():
+        return remote_service.query_records(
+            analysis_type=analysis_type,
+            entity_id=entity_id,
+            tags=tags,
+            since=since,
+            until=until,
+            search_data=search_data,
+            limit=limit,
+            offset=offset,
+        )
     records = record_service.query_records(
         analysis_type=analysis_type,
         entity_id=entity_id,
@@ -127,6 +151,11 @@ def query_records(
 )
 def get_record(id: str) -> dict | str:
     """Get a record by UUID."""
+    if remote_service.is_remote():
+        record = remote_service.get_record(id)
+        if record is None:
+            return f"Record not found: {id}"
+        return record
     record = record_service.get_record(id)
     if record is None:
         return f"Record not found: {id}"
@@ -142,6 +171,12 @@ def get_record(id: str) -> dict | str:
 )
 def list_analysis_types() -> list[dict]:
     """List stored analysis types."""
+    if remote_service.is_remote():
+        types = remote_service.list_analysis_types()
+        if not types:
+            msg = "No records stored yet. Import data using ingest_records or ingest_csv."
+            return [{"message": msg}]
+        return types
     types = record_service.list_analysis_types()
     if not types:
         msg = "No records stored yet. Import data using ingest_records or ingest_csv."
@@ -162,6 +197,11 @@ def get_analytics(
     since: str | None = None,
 ) -> dict:
     """Get analytics summary."""
+    if remote_service.is_remote():
+        return remote_service.get_analytics(
+            analysis_type=analysis_type,
+            since=since,
+        )
     analytics = record_service.get_analytics(
         analysis_type=analysis_type,
         since=since,
@@ -186,8 +226,14 @@ def delete_records(
     if not analysis_type and not older_than and not record_ids:
         return {
             "deleted": 0,
-            "error": "At least one filter required (analysis_type, older_than, or record_ids)",
+            "error": "At least one filter required",
         }
+    if remote_service.is_remote():
+        return remote_service.delete_records(
+            analysis_type=analysis_type,
+            older_than=older_than,
+            record_ids=record_ids,
+        )
     result = record_service.delete_records(
         analysis_type=analysis_type,
         older_than=older_than,
@@ -203,7 +249,7 @@ def delete_records(
         "semantically similar records — not just keyword matches. "
         "Example: 'calls where budget was not discussed' will find records about "
         "missing budget conversations even if those exact words aren't used. "
-        "Requires embeddings to be enabled (EMBEDDING_PROVIDER set). "
+        "Requires embeddings to be enabled (EMBEDDING_PROVIDER set) in local mode. "
         "Returns records ranked by similarity score."
     ),
 )
@@ -213,6 +259,17 @@ def semantic_search(
     top_k: int = 10,
 ) -> list[dict]:
     """Semantic search across records."""
+    if remote_service.is_remote():
+        # Remote mode: fall back to text search (hosted service doesn't have embeddings yet)
+        records = remote_service.query_records(
+            analysis_type=analysis_type,
+            search_data=query,
+            limit=top_k,
+        )
+        return [
+            {"record": r, "similarity_score": None, "note": "text search (remote mode)"}
+            for r in records
+        ]
     return search_service.semantic_search(
         query=query,
         analysis_type=analysis_type,
@@ -223,22 +280,46 @@ def semantic_search(
 @mcp.tool(
     name="get_webhook_url",
     description=(
-        "Get the URL of the local webhook server. "
-        "Use this to tell the user what URL to configure in Clay's HTTP API enrichment. "
-        "The webhook server accepts POST requests with Clay record data."
+        "Get the webhook URL for Clay configuration. "
+        "Shows the URL, body format, and authentication details. "
+        "In remote mode, returns the hosted service URL."
     ),
 )
 def get_webhook_url() -> dict:
     """Get the webhook server URL."""
     import os
 
+    if remote_service.is_remote():
+        remote_url = os.environ.get("REMOTE_URL", "").rstrip("/")
+        api_key = os.environ.get("REMOTE_API_KEY", "")
+        info: dict = {
+            "webhook_url": f"{remote_url}/webhook",
+            "health_url": f"{remote_url}/health",
+            "method": "POST",
+            "mode": "remote (hosted service)",
+            "body_format": {
+                "record_id": "{{Row ID}}",
+                "analysis_type": "your_analysis_type",
+                "data": {"field1": "{{Column 1}}", "field2": "{{Column 2}}"},
+                "entity_id": "{{Deal ID}}  (optional)",
+                "entity_name": "{{Company Name}}  (optional)",
+            },
+        }
+        if api_key:
+            info["authentication"] = {
+                "header": f"Authorization: Bearer {api_key}",
+                "clay_setup": f"In Clay, add header: Authorization = Bearer {api_key}",
+            }
+        return info
+
     port = int(os.environ.get("WEBHOOK_PORT", "8742"))
     api_key = os.environ.get("WEBHOOK_API_KEY", "")
 
-    info: dict = {
+    info = {
         "webhook_url": f"http://localhost:{port}/webhook",
         "health_url": f"http://localhost:{port}/health",
         "method": "POST",
+        "mode": "local",
         "body_format": {
             "record_id": "{{Row ID}}",
             "analysis_type": "your_analysis_type",
@@ -252,17 +333,13 @@ def get_webhook_url() -> dict:
         info["authentication"] = {
             "type": "Bearer token or X-API-Key header",
             "header": f"Authorization: Bearer {api_key}",
-            "clay_setup": (
-                "In Clay's HTTP API column, add a header: "
-                f"Authorization = Bearer {api_key}"
-            ),
+            "clay_setup": f"In Clay, add header: Authorization = Bearer {api_key}",
         }
     else:
         info["authentication"] = "None (set WEBHOOK_API_KEY to require auth)"
 
     info["external_access"] = (
-        "For Clay cloud → local machine, run: ngrok http "
-        f"{port} — then use the ngrok URL in Clay."
+        f"For Clay cloud, run: ngrok http {port} — then use the ngrok URL."
     )
 
     return info
@@ -270,12 +347,12 @@ def get_webhook_url() -> dict:
 
 def main():
     """Entry point for the MCP server."""
-    init_db()
+    if not remote_service.is_remote():
+        init_db()
+        # Start webhook HTTP server in background (local mode only)
+        from .webhook_server import start_webhook_server
 
-    # Start webhook HTTP server in background
-    from .webhook_server import start_webhook_server
-
-    start_webhook_server()
+        start_webhook_server()
 
     mcp.run(transport="stdio")
 
