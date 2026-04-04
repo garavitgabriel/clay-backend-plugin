@@ -1,0 +1,76 @@
+# Clay Backend Plugin — Scheduled Analysis Config
+#
+# Copy this file to schedules.yaml and customize.
+# Each schedule runs a skill on a cron and sends the output to Slack/Clay/etc.
+#
+# Cron format: minute hour day month day_of_week
+#   "0 8 * * 1"    = Monday 8am
+#   "0 18 * * *"   = Every day 6pm
+#   "0 9 1 * *"    = 1st of month 9am
+#
+# Skills available: analyze-patterns, import-data, setup-guide
+# (or any custom skill you create in the skills/ directory)
+
+schedules:
+  # Weekly coaching digest — every Monday at 8am
+  - name: weekly-coaching-digest
+    skill: analyze-patterns
+    cron: "0 8 * * 1"
+    context:
+      analysis_type: call_analysis
+      since: "7 days ago"
+      limit: 100
+    # Optional: additional instructions beyond what the skill defines
+    prompt: |
+      Focus on coaching priorities. For each rep, identify their #1 area
+      for improvement with specific call evidence. Format for Slack readability.
+    outputs:
+      - type: slack
+        webhook_url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+
+  # Daily lead quality alert — every day at 6pm
+  - name: daily-lead-quality-check
+    skill: analyze-patterns
+    cron: "0 18 * * *"
+    context:
+      analysis_type: lead_scoring
+      since: "1 day ago"
+      limit: 50
+    prompt: |
+      Check if average lead quality today dropped below B.
+      If so, identify the source of low-quality leads.
+      If quality is fine, just say "Lead quality normal" in one line.
+    outputs:
+      - type: slack
+        webhook_url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+
+  # Monthly pipeline review — 1st of each month at 9am
+  - name: monthly-pipeline-review
+    skill: analyze-patterns
+    cron: "0 9 1 * *"
+    context:
+      analysis_type: call_analysis
+      since: "30 days ago"
+      limit: 200
+    prompt: |
+      Produce a monthly pipeline review. Compare week-over-week trends.
+      Include: overall team performance, per-rep scorecards, lead quality
+      trajectory, top 3 strategic recommendations for leadership.
+    outputs:
+      - type: slack
+        webhook_url: https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+      - type: clay_webhook
+        url: https://your-clay-webhook-table-url
+        headers:
+          Authorization: "Bearer your-clay-auth-token"
+
+  # Send synthesis results back to Clay for further routing
+  # - name: weekly-to-clay
+  #   skill: analyze-patterns
+  #   cron: "0 8 * * 1"
+  #   context:
+  #     analysis_type: call_analysis
+  #     since: "7 days ago"
+  #   outputs:
+  #     - type: clay_webhook
+  #       url: https://your-clay-webhook-table-url
