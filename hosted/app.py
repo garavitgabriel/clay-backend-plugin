@@ -28,7 +28,19 @@ async def lifespan(app: FastAPI):
     global pool
     pool = await asyncpg.create_pool(DATABASE_URL, min_size=2, max_size=10)
     await _init_db()
+
+    # Start scheduler if SCHEDULES_PATH or ANTHROPIC_API_KEY is set
+    scheduler = None
+    schedules_path = os.environ.get("SCHEDULES_PATH", "")
+    if schedules_path and os.environ.get("ANTHROPIC_API_KEY"):
+        from scheduler import start_scheduler
+
+        scheduler = start_scheduler(pool, schedules_path)
+
     yield
+
+    if scheduler:
+        scheduler.shutdown(wait=False)
     await pool.close()
 
 
