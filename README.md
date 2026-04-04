@@ -4,7 +4,11 @@ A Claude Code plugin that fills Clay's aggregation gap. Clay analyzes data one r
 
 > "Insufficient discovery in 8 of 10 calls this week. Budget qualification is the #1 gap — and it's getting worse."
 >
-> That insight is impossible inside Clay. It requires looking across rows. This plugin makes it automatic.
+> "3 of the last 5 company enrichments flagged a funding round, but none of those leads got routed to enterprise AEs."
+>
+> "Support ticket sentiment went negative across 4 accounts this month — all tied to the same onboarding gap."
+>
+> These insights are impossible inside Clay. They require looking across rows. This plugin makes them automatic.
 
 ## Quick Start
 
@@ -98,35 +102,89 @@ Copy structured analysis output from Clay and paste it directly. Claude will par
 
 ---
 
-## What You Can Ask
+## What You Can Do
+
+### Ask Questions (Interactive)
+
+Works with any type of Clay data — sales calls, company enrichment, support tickets, lead scoring, email analysis, content research, competitive intel.
 
 **Find patterns:**
 ```
-"What are the common issues across this week's call analyses?"
-→ Fetches all records → identifies 3 recurring themes, 2 outliers,
-  specific coaching recommendations with record citations
+"What patterns do you see across this week's prospect enrichments?"
+"What are the common objections in our last 30 sales calls?"
+"Which support issues keep recurring across these tickets?"
 ```
 
 **Semantic search:**
 ```
-"Show me calls where budget wasn't discussed"
-→ Searches by meaning, not just keywords → finds relevant records
-  even if the word "budget" doesn't appear in the text
+"Find companies where funding was mentioned"
+"Show me leads that expressed urgency"
+"Which enrichments flagged compliance concerns?"
 ```
 
-**Cross-stage comparison:**
+**Cross-type comparison:**
 ```
-"Compare BDR and AE analyses for the same deals"
-→ Joins records by entity_id → shows where evaluations diverge
-→ "BDRs graded 6 of 12 deals as B+, but AEs found them to be D.
-   The gap is aspirational vs. confirmed budget language."
+"Compare our enrichment data vs actual call outcomes for the same companies"
+"How does email sentiment correlate with deal stage for these accounts?"
+"Show me where lead scoring disagrees with rep assessments"
 ```
 
 **Track trends:**
 ```
 "Is lead quality getting better or worse over the last 3 weeks?"
-→ Compares records by time period → identifies trajectory
+"How has competitor mention frequency changed this quarter?"
+"Are support ticket topics shifting month over month?"
 ```
+
+### Automated Analysis (Scheduled)
+
+Run the daemon with a `schedules.yaml` config — skills execute on cron and deliver results to Slack or back to Clay.
+
+```bash
+clay-webhook-daemon --schedules schedules.yaml
+```
+
+```yaml
+schedules:
+  # Weekly sales coaching digest → Slack every Monday
+  - name: weekly-coaching-digest
+    skill: analyze-patterns
+    cron: "0 8 * * 1"
+    context:
+      analysis_type: call_analysis
+      since: "7 days ago"
+    prompt: "Per-rep coaching priorities with specific evidence."
+    outputs:
+      - type: slack
+        webhook_url: https://hooks.slack.com/services/XXX
+
+  # Daily lead quality alert → Slack if something's off
+  - name: lead-quality-check
+    skill: analyze-patterns
+    cron: "0 18 * * *"
+    context:
+      analysis_type: lead_scoring
+      since: "1 day ago"
+    prompt: "Alert only if average quality dropped below B."
+    outputs:
+      - type: slack
+        webhook_url: https://hooks.slack.com/services/XXX
+
+  # Monthly enrichment review → back to Clay for routing
+  - name: monthly-enrichment-review
+    skill: analyze-patterns
+    cron: "0 9 1 * *"
+    context:
+      analysis_type: company_enrichment
+      since: "30 days ago"
+    outputs:
+      - type: clay_webhook
+        url: https://your-clay-webhook-table
+```
+
+Skills are the playbook — same `analyze-patterns` skill works interactively in Claude Code AND automated via the scheduler. Write once, use both ways.
+
+Outputs go to **Slack** (incoming webhook) or **Clay** (webhook table → Clay routes to Slack, email, CRM, or any other destination using Clay's own delivery).
 
 ---
 
@@ -214,35 +272,88 @@ Only `record_id`, `analysis_type`, and `data` are required. Everything else is o
 
 ---
 
-## Example: Sales Ops Weekly Review
+## Use Cases
 
-Sarah manages 6 BDRs. Clay runs AI analysis on each Gong call transcript.
+The plugin works with any Clay workflow that produces per-record AI analysis. The `data` field is flexible JSON — the plugin doesn't care what's inside it.
 
-**Setup (once):**
-1. Installs plugin: `/plugin install clay-backend-plugin`
-2. Adds HTTP API column to her Clay table pointing to `localhost:8742/webhook`
-3. Optionally runs `clay-webhook-daemon` for 24/7 collection
+### Sales Coaching
 
-**Monday morning:**
+Clay analyzes Gong call transcripts → plugin finds team-wide coaching gaps.
+
 ```
-Sarah: "What patterns do you see in last week's calls?"
+"What patterns do you see in last week's calls?"
 
-Claude: Fetches 43 records → analyzes →
-
-  Key Findings (March 23–30):
-  1. Budget qualification skipped in 65% of calls — team-wide, not one rep
-  2. Bob's calls average score 34 (team avg 62) — skips discovery entirely
-  3. Lead quality dropped from B to C+ — 11 of 43 were D-grade leads,
-     9 came from the same webinar campaign
-
-  Recommendations:
-  • Coaching (all): Role-play budget discovery question
-  • Coaching (Bob): Dedicated discovery framework session
-  • Process: Investigate lead source — webinar-march-2026 is sending
-    unqualified leads
+→ Budget qualification skipped in 65% of calls — team-wide, not one rep.
+  Bob's calls average score 34 (team avg 62) — skips discovery entirely.
+  Lead quality dropped from B to C+ — 9 of 11 D-grade leads came from
+  the same webinar campaign.
 ```
 
-Every one of those insights required looking across rows. Clay can't do it. This plugin can.
+Schedule a weekly Slack digest every Monday → manager walks in knowing the priorities.
+
+### Company Enrichment & Lead Routing
+
+Clay enriches companies (funding data, tech stack, headcount) → plugin spots patterns in the enriched data.
+
+```
+"Which enriched companies from this week look like enterprise prospects
+ but got routed to SMB reps?"
+
+→ 7 companies flagged: all have 500+ employees and recent Series C,
+  but scored as SMB because the scoring model weights domain traffic
+  over headcount. Recommend adjusting the routing threshold.
+```
+
+### Support Ticket Analysis
+
+Clay runs sentiment and topic analysis on Zendesk tickets → plugin finds systemic issues.
+
+```
+"What are the top support themes this month and are they getting worse?"
+
+→ Onboarding friction is #1 (34% of tickets). It's concentrated in
+  accounts that signed up after the March UI update. 8 of 12 mention
+  "can't find the settings page" — likely a navigation regression.
+```
+
+### Competitive Intelligence
+
+Clay monitors competitor mentions across calls, emails, and news → plugin tracks share of voice.
+
+```
+"How often is [Competitor X] showing up, and in what context?"
+
+→ Competitor X mentioned in 18 of 45 calls this month, up from 9 last
+  month. Context shifted: previously mentioned as "also evaluating,"
+  now mentioned as "showed us a demo." They're getting more aggressive
+  in our mid-market segment.
+```
+
+### Email Campaign Analysis
+
+Clay scores email replies for sentiment and intent → plugin measures campaign effectiveness.
+
+```
+"Compare reply sentiment across our last 3 outbound campaigns"
+
+→ Campaign A (case study angle): 72% positive replies, 15% meetings booked
+  Campaign B (ROI calculator): 45% positive, 8% meetings
+  Campaign C (cold intro): 23% positive, 3% meetings
+  Clear winner. Campaign A's approach should be the template.
+```
+
+### Cross-Stage Pipeline
+
+Multiple Clay tables (BDR calls + AE calls + lead scores) linked by deal ID → plugin joins them.
+
+```
+"Where do deals break between BDR qualification and AE discovery?"
+
+→ 6 of 12 matched deals have a qualification mismatch. BDRs rated them
+  B+ based on enthusiasm. AEs found no confirmed budget in 5 of 6.
+  Root cause: BDRs treat "we have budget for tools like this" as
+  confirmed. They need to ask for a specific number.
+```
 
 ---
 
@@ -337,7 +448,9 @@ uv run pytest
 - [x] Skills for guided import and analysis
 - [x] Synthesis agent for deep cross-record analysis
 - [x] Hosted backend option (FastAPI + PostgreSQL) with one-click deploy
+- [x] Scheduled skill execution (cron → Anthropic API → Slack/Clay delivery)
 - [ ] Embeddings support in hosted mode (pgvector)
+- [ ] Email output for scheduled reports
 
 ## License
 
