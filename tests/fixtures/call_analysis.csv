@@ -1,0 +1,25 @@
+Row ID,Company,Entity ID,Rep,Score,Sentiment,Summary
+call-000,Acme Robotics,company-0,Erin Walsh,81,positive,Strong discovery call. Prospect confirmed budget and named an executive sponsor. Clear pain around manual data entry; wants a pilot within the quarter.
+call-001,Northwind Trading,company-1,Carmen Ruiz,56,neutral,Early-stage conversation. No budget allocated yet and timeline is vague. Rep should nurture rather than push for a demo.
+call-002,Globex Systems,company-2,Carmen Ruiz,81,positive,Competitor came up repeatedly and the prospect pushed back hard on pricing. Deal at risk unless we can show ROI quickly.
+call-003,Initech Software,company-3,Carmen Ruiz,61,neutral,"Great call — champion is engaged, next steps are set, and a security review is scheduled. Budget was discussed openly and is approved."
+call-004,Umbrella Health,company-4,Dev Patel,89,positive,Prospect went quiet on next steps and avoided commitment. High ghosting risk; no follow-up meeting was booked.
+call-005,Stark Industries,company-5,Dev Patel,79,positive,Deep technical dive into the API and embeddings pipeline. The champion understands the integration and wants to involve their data team next.
+call-006,Wayne Logistics,company-6,Alice Chen,74,positive,Strong discovery call. Prospect confirmed budget and named an executive sponsor. Clear pain around manual data entry; wants a pilot within the quarter.
+call-007,Wonka Foods,company-7,Dev Patel,50,neutral,Early-stage conversation. No budget allocated yet and timeline is vague. Rep should nurture rather than push for a demo.
+call-008,Soylent Nutrition,company-8,Carmen Ruiz,56,neutral,Competitor came up repeatedly and the prospect pushed back hard on pricing. Deal at risk unless we can show ROI quickly.
+call-009,Hooli Cloud,company-9,Erin Walsh,93,positive,"Great call — champion is engaged, next steps are set, and a security review is scheduled. Budget was discussed openly and is approved."
+call-010,Pied Piper Data,company-10,Erin Walsh,60,neutral,Prospect went quiet on next steps and avoided commitment. High ghosting risk; no follow-up meeting was booked.
+call-011,Vandelay Imports,company-11,Alice Chen,40,negative,Deep technical dive into the API and embeddings pipeline. The champion understands the integration and wants to involve their data team next.
+call-012,Cyberdyne AI,company-12,Alice Chen,41,negative,Strong discovery call. Prospect confirmed budget and named an executive sponsor. Clear pain around manual data entry; wants a pilot within the quarter.
+call-013,Tyrell Bioworks,company-13,Bob Diaz,60,neutral,Early-stage conversation. No budget allocated yet and timeline is vague. Rep should nurture rather than push for a demo.
+call-014,Massive Dynamic,company-14,Bob Diaz,71,positive,Competitor came up repeatedly and the prospect pushed back hard on pricing. Deal at risk unless we can show ROI quickly.
+call-015,Oscorp Materials,company-15,Alice Chen,75,positive,"Great call — champion is engaged, next steps are set, and a security review is scheduled. Budget was discussed openly and is approved."
+call-016,Gekko Capital,company-16,Dev Patel,77,positive,Prospect went quiet on next steps and avoided commitment. High ghosting risk; no follow-up meeting was booked.
+call-017,Bluth Property,company-17,Erin Walsh,64,neutral,Deep technical dive into the API and embeddings pipeline. The champion understands the integration and wants to involve their data team next.
+call-018,Dunder Mifflin,company-18,Bob Diaz,74,positive,Strong discovery call. Prospect confirmed budget and named an executive sponsor. Clear pain around manual data entry; wants a pilot within the quarter.
+call-019,Sterling Cooper,company-19,Erin Walsh,58,neutral,Early-stage conversation. No budget allocated yet and timeline is vague. Rep should nurture rather than push for a demo.
+call-020,Prestige Worldwide,company-20,Alice Chen,58,neutral,Competitor came up repeatedly and the prospect pushed back hard on pricing. Deal at risk unless we can show ROI quickly.
+call-021,Vehement Capital,company-21,Alice Chen,93,positive,"Great call — champion is engaged, next steps are set, and a security review is scheduled. Budget was discussed openly and is approved."
+call-022,Aperture Labs,company-22,Erin Walsh,97,positive,Prospect went quiet on next steps and avoided commitment. High ghosting risk; no follow-up meeting was booked.
+call-023,Black Mesa,company-23,Erin Walsh,80,positive,Deep technical dive into the API and embeddings pipeline. The champion understands the integration and wants to involve their data team next.

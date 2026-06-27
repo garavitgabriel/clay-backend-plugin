@@ -1,0 +1,914 @@
+[
+  {
+    "record_id": "call-000",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-0",
+    "entity_name": "Acme Robotics",
+    "tags": [
+      "budget_discussed",
+      "champion_identified"
+    ],
+    "data": {
+      "rep": "Erin Walsh",
+      "score": 81,
+      "sentiment": "positive",
+      "summary": "Strong discovery call. Prospect confirmed budget and named an executive sponsor. Clear pain around manual data entry; wants a pilot within the quarter.",
+      "duration_min": 49,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-01T09:00:00+00:00"
+  },
+  {
+    "record_id": "call-001",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-1",
+    "entity_name": "Northwind Trading",
+    "tags": [
+      "no_budget",
+      "early_stage"
+    ],
+    "data": {
+      "rep": "Carmen Ruiz",
+      "score": 56,
+      "sentiment": "neutral",
+      "summary": "Early-stage conversation. No budget allocated yet and timeline is vague. Rep should nurture rather than push for a demo.",
+      "duration_min": 36,
+      "next_steps": false
+    },
+    "_created_at": "2026-05-02T10:00:00+00:00"
+  },
+  {
+    "record_id": "call-002",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-2",
+    "entity_name": "Globex Systems",
+    "tags": [
+      "competitor_mentioned",
+      "pricing_objection"
+    ],
+    "data": {
+      "rep": "Carmen Ruiz",
+      "score": 81,
+      "sentiment": "positive",
+      "summary": "Competitor came up repeatedly and the prospect pushed back hard on pricing. Deal at risk unless we can show ROI quickly.",
+      "duration_min": 37,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-03T11:00:00+00:00"
+  },
+  {
+    "record_id": "call-003",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-3",
+    "entity_name": "Initech Software",
+    "tags": [
+      "champion_identified",
+      "next_steps_set"
+    ],
+    "data": {
+      "rep": "Carmen Ruiz",
+      "score": 61,
+      "sentiment": "neutral",
+      "summary": "Great call \u2014 champion is engaged, next steps are set, and a security review is scheduled. Budget was discussed openly and is approved.",
+      "duration_min": 18,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-04T12:00:00+00:00"
+  },
+  {
+    "record_id": "call-004",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-4",
+    "entity_name": "Umbrella Health",
+    "tags": [
+      "ghosting_risk",
+      "no_next_steps"
+    ],
+    "data": {
+      "rep": "Dev Patel",
+      "score": 89,
+      "sentiment": "positive",
+      "summary": "Prospect went quiet on next steps and avoided commitment. High ghosting risk; no follow-up meeting was booked.",
+      "duration_min": 16,
+      "next_steps": false
+    },
+    "_created_at": "2026-05-05T13:00:00+00:00"
+  },
+  {
+    "record_id": "call-005",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-5",
+    "entity_name": "Stark Industries",
+    "tags": [
+      "technical_deep_dive",
+      "champion_identified"
+    ],
+    "data": {
+      "rep": "Dev Patel",
+      "score": 79,
+      "sentiment": "positive",
+      "summary": "Deep technical dive into the API and embeddings pipeline. The champion understands the integration and wants to involve their data team next.",
+      "duration_min": 37,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-06T14:00:00+00:00"
+  },
+  {
+    "record_id": "call-006",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-6",
+    "entity_name": "Wayne Logistics",
+    "tags": [
+      "budget_discussed",
+      "champion_identified"
+    ],
+    "data": {
+      "rep": "Alice Chen",
+      "score": 74,
+      "sentiment": "positive",
+      "summary": "Strong discovery call. Prospect confirmed budget and named an executive sponsor. Clear pain around manual data entry; wants a pilot within the quarter.",
+      "duration_min": 34,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-07T15:00:00+00:00"
+  },
+  {
+    "record_id": "call-007",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-7",
+    "entity_name": "Wonka Foods",
+    "tags": [
+      "no_budget",
+      "early_stage"
+    ],
+    "data": {
+      "rep": "Dev Patel",
+      "score": 50,
+      "sentiment": "neutral",
+      "summary": "Early-stage conversation. No budget allocated yet and timeline is vague. Rep should nurture rather than push for a demo.",
+      "duration_min": 27,
+      "next_steps": false
+    },
+    "_created_at": "2026-05-08T09:00:00+00:00"
+  },
+  {
+    "record_id": "call-008",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-8",
+    "entity_name": "Soylent Nutrition",
+    "tags": [
+      "competitor_mentioned",
+      "pricing_objection"
+    ],
+    "data": {
+      "rep": "Carmen Ruiz",
+      "score": 56,
+      "sentiment": "neutral",
+      "summary": "Competitor came up repeatedly and the prospect pushed back hard on pricing. Deal at risk unless we can show ROI quickly.",
+      "duration_min": 55,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-09T10:00:00+00:00"
+  },
+  {
+    "record_id": "call-009",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-9",
+    "entity_name": "Hooli Cloud",
+    "tags": [
+      "champion_identified",
+      "next_steps_set"
+    ],
+    "data": {
+      "rep": "Erin Walsh",
+      "score": 93,
+      "sentiment": "positive",
+      "summary": "Great call \u2014 champion is engaged, next steps are set, and a security review is scheduled. Budget was discussed openly and is approved.",
+      "duration_min": 28,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-10T11:00:00+00:00"
+  },
+  {
+    "record_id": "call-010",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-10",
+    "entity_name": "Pied Piper Data",
+    "tags": [
+      "ghosting_risk",
+      "no_next_steps"
+    ],
+    "data": {
+      "rep": "Erin Walsh",
+      "score": 60,
+      "sentiment": "neutral",
+      "summary": "Prospect went quiet on next steps and avoided commitment. High ghosting risk; no follow-up meeting was booked.",
+      "duration_min": 16,
+      "next_steps": false
+    },
+    "_created_at": "2026-05-11T12:00:00+00:00"
+  },
+  {
+    "record_id": "call-011",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-11",
+    "entity_name": "Vandelay Imports",
+    "tags": [
+      "technical_deep_dive",
+      "champion_identified"
+    ],
+    "data": {
+      "rep": "Alice Chen",
+      "score": 40,
+      "sentiment": "negative",
+      "summary": "Deep technical dive into the API and embeddings pipeline. The champion understands the integration and wants to involve their data team next.",
+      "duration_min": 38,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-12T13:00:00+00:00"
+  },
+  {
+    "record_id": "call-012",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-12",
+    "entity_name": "Cyberdyne AI",
+    "tags": [
+      "budget_discussed",
+      "champion_identified"
+    ],
+    "data": {
+      "rep": "Alice Chen",
+      "score": 41,
+      "sentiment": "negative",
+      "summary": "Strong discovery call. Prospect confirmed budget and named an executive sponsor. Clear pain around manual data entry; wants a pilot within the quarter.",
+      "duration_min": 52,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-13T14:00:00+00:00"
+  },
+  {
+    "record_id": "call-013",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-13",
+    "entity_name": "Tyrell Bioworks",
+    "tags": [
+      "no_budget",
+      "early_stage"
+    ],
+    "data": {
+      "rep": "Bob Diaz",
+      "score": 60,
+      "sentiment": "neutral",
+      "summary": "Early-stage conversation. No budget allocated yet and timeline is vague. Rep should nurture rather than push for a demo.",
+      "duration_min": 18,
+      "next_steps": false
+    },
+    "_created_at": "2026-05-14T15:00:00+00:00"
+  },
+  {
+    "record_id": "call-014",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-14",
+    "entity_name": "Massive Dynamic",
+    "tags": [
+      "competitor_mentioned",
+      "pricing_objection"
+    ],
+    "data": {
+      "rep": "Bob Diaz",
+      "score": 71,
+      "sentiment": "positive",
+      "summary": "Competitor came up repeatedly and the prospect pushed back hard on pricing. Deal at risk unless we can show ROI quickly.",
+      "duration_min": 40,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-15T09:00:00+00:00"
+  },
+  {
+    "record_id": "call-015",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-15",
+    "entity_name": "Oscorp Materials",
+    "tags": [
+      "champion_identified",
+      "next_steps_set"
+    ],
+    "data": {
+      "rep": "Alice Chen",
+      "score": 75,
+      "sentiment": "positive",
+      "summary": "Great call \u2014 champion is engaged, next steps are set, and a security review is scheduled. Budget was discussed openly and is approved.",
+      "duration_min": 51,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-16T10:00:00+00:00"
+  },
+  {
+    "record_id": "call-016",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-16",
+    "entity_name": "Gekko Capital",
+    "tags": [
+      "ghosting_risk",
+      "no_next_steps"
+    ],
+    "data": {
+      "rep": "Dev Patel",
+      "score": 77,
+      "sentiment": "positive",
+      "summary": "Prospect went quiet on next steps and avoided commitment. High ghosting risk; no follow-up meeting was booked.",
+      "duration_min": 48,
+      "next_steps": false
+    },
+    "_created_at": "2026-05-17T11:00:00+00:00"
+  },
+  {
+    "record_id": "call-017",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-17",
+    "entity_name": "Bluth Property",
+    "tags": [
+      "technical_deep_dive",
+      "champion_identified"
+    ],
+    "data": {
+      "rep": "Erin Walsh",
+      "score": 64,
+      "sentiment": "neutral",
+      "summary": "Deep technical dive into the API and embeddings pipeline. The champion understands the integration and wants to involve their data team next.",
+      "duration_min": 14,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-18T12:00:00+00:00"
+  },
+  {
+    "record_id": "call-018",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-18",
+    "entity_name": "Dunder Mifflin",
+    "tags": [
+      "budget_discussed",
+      "champion_identified"
+    ],
+    "data": {
+      "rep": "Bob Diaz",
+      "score": 74,
+      "sentiment": "positive",
+      "summary": "Strong discovery call. Prospect confirmed budget and named an executive sponsor. Clear pain around manual data entry; wants a pilot within the quarter.",
+      "duration_min": 51,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-19T13:00:00+00:00"
+  },
+  {
+    "record_id": "call-019",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-19",
+    "entity_name": "Sterling Cooper",
+    "tags": [
+      "no_budget",
+      "early_stage"
+    ],
+    "data": {
+      "rep": "Erin Walsh",
+      "score": 58,
+      "sentiment": "neutral",
+      "summary": "Early-stage conversation. No budget allocated yet and timeline is vague. Rep should nurture rather than push for a demo.",
+      "duration_min": 45,
+      "next_steps": false
+    },
+    "_created_at": "2026-05-20T14:00:00+00:00"
+  },
+  {
+    "record_id": "call-020",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-20",
+    "entity_name": "Prestige Worldwide",
+    "tags": [
+      "competitor_mentioned",
+      "pricing_objection"
+    ],
+    "data": {
+      "rep": "Alice Chen",
+      "score": 58,
+      "sentiment": "neutral",
+      "summary": "Competitor came up repeatedly and the prospect pushed back hard on pricing. Deal at risk unless we can show ROI quickly.",
+      "duration_min": 43,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-01T15:00:00+00:00"
+  },
+  {
+    "record_id": "call-021",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-21",
+    "entity_name": "Vehement Capital",
+    "tags": [
+      "champion_identified",
+      "next_steps_set"
+    ],
+    "data": {
+      "rep": "Alice Chen",
+      "score": 93,
+      "sentiment": "positive",
+      "summary": "Great call \u2014 champion is engaged, next steps are set, and a security review is scheduled. Budget was discussed openly and is approved.",
+      "duration_min": 45,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-02T09:00:00+00:00"
+  },
+  {
+    "record_id": "call-022",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-22",
+    "entity_name": "Aperture Labs",
+    "tags": [
+      "ghosting_risk",
+      "no_next_steps"
+    ],
+    "data": {
+      "rep": "Erin Walsh",
+      "score": 97,
+      "sentiment": "positive",
+      "summary": "Prospect went quiet on next steps and avoided commitment. High ghosting risk; no follow-up meeting was booked.",
+      "duration_min": 53,
+      "next_steps": false
+    },
+    "_created_at": "2026-05-03T10:00:00+00:00"
+  },
+  {
+    "record_id": "call-023",
+    "analysis_type": "call_analysis",
+    "source": "gong",
+    "entity_id": "company-23",
+    "entity_name": "Black Mesa",
+    "tags": [
+      "technical_deep_dive",
+      "champion_identified"
+    ],
+    "data": {
+      "rep": "Erin Walsh",
+      "score": 80,
+      "sentiment": "positive",
+      "summary": "Deep technical dive into the API and embeddings pipeline. The champion understands the integration and wants to involve their data team next.",
+      "duration_min": 48,
+      "next_steps": true
+    },
+    "_created_at": "2026-05-04T11:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-000",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-0",
+    "entity_name": "Acme Robotics",
+    "tags": [
+      "icp_fit"
+    ],
+    "data": {
+      "industry": "SaaS",
+      "employee_range": "1-50",
+      "fit_score": 52,
+      "summary": "Mid-market SaaS company growing headcount in engineering; strong fit for our ICP.",
+      "funded": false
+    },
+    "_created_at": "2026-05-05T12:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-001",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-1",
+    "entity_name": "Northwind Trading",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Healthcare",
+      "employee_range": "51-200",
+      "fit_score": 28,
+      "summary": "Healthcare provider with strict compliance needs; longer sales cycle expected.",
+      "funded": true
+    },
+    "_created_at": "2026-05-06T13:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-002",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-2",
+    "entity_name": "Globex Systems",
+    "tags": [
+      "icp_fit"
+    ],
+    "data": {
+      "industry": "FinTech",
+      "employee_range": "201-1000",
+      "fit_score": 27,
+      "summary": "FinTech scale-up, well funded, actively buying tooling this fiscal year.",
+      "funded": true
+    },
+    "_created_at": "2026-05-07T14:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-003",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-3",
+    "entity_name": "Initech Software",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Manufacturing",
+      "employee_range": "1000-5000",
+      "fit_score": 60,
+      "summary": "Legacy manufacturer modernizing its data stack; budget owner is the new CTO.",
+      "funded": true
+    },
+    "_created_at": "2026-05-08T15:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-004",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-4",
+    "entity_name": "Umbrella Health",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Logistics",
+      "employee_range": "5000+",
+      "fit_score": 44,
+      "summary": "Logistics firm with thin margins; price sensitivity is high.",
+      "funded": false
+    },
+    "_created_at": "2026-05-09T09:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-005",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-5",
+    "entity_name": "Stark Industries",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Biotech",
+      "employee_range": "1-50",
+      "fit_score": 89,
+      "summary": "Biotech research org with grant-driven, lumpy purchasing patterns.",
+      "funded": false
+    },
+    "_created_at": "2026-05-10T10:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-006",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-6",
+    "entity_name": "Wayne Logistics",
+    "tags": [
+      "icp_fit"
+    ],
+    "data": {
+      "industry": "SaaS",
+      "employee_range": "51-200",
+      "fit_score": 26,
+      "summary": "Mid-market SaaS company growing headcount in engineering; strong fit for our ICP.",
+      "funded": true
+    },
+    "_created_at": "2026-05-11T11:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-007",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-7",
+    "entity_name": "Wonka Foods",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Healthcare",
+      "employee_range": "201-1000",
+      "fit_score": 74,
+      "summary": "Healthcare provider with strict compliance needs; longer sales cycle expected.",
+      "funded": false
+    },
+    "_created_at": "2026-05-12T12:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-008",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-8",
+    "entity_name": "Soylent Nutrition",
+    "tags": [
+      "icp_fit"
+    ],
+    "data": {
+      "industry": "FinTech",
+      "employee_range": "1000-5000",
+      "fit_score": 25,
+      "summary": "FinTech scale-up, well funded, actively buying tooling this fiscal year.",
+      "funded": false
+    },
+    "_created_at": "2026-05-13T13:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-009",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-9",
+    "entity_name": "Hooli Cloud",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Manufacturing",
+      "employee_range": "5000+",
+      "fit_score": 56,
+      "summary": "Legacy manufacturer modernizing its data stack; budget owner is the new CTO.",
+      "funded": true
+    },
+    "_created_at": "2026-05-14T14:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-010",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-10",
+    "entity_name": "Pied Piper Data",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Logistics",
+      "employee_range": "1-50",
+      "fit_score": 27,
+      "summary": "Logistics firm with thin margins; price sensitivity is high.",
+      "funded": false
+    },
+    "_created_at": "2026-05-15T15:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-011",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-11",
+    "entity_name": "Vandelay Imports",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Biotech",
+      "employee_range": "51-200",
+      "fit_score": 64,
+      "summary": "Biotech research org with grant-driven, lumpy purchasing patterns.",
+      "funded": false
+    },
+    "_created_at": "2026-05-16T09:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-012",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-12",
+    "entity_name": "Cyberdyne AI",
+    "tags": [
+      "icp_fit"
+    ],
+    "data": {
+      "industry": "SaaS",
+      "employee_range": "201-1000",
+      "fit_score": 28,
+      "summary": "Mid-market SaaS company growing headcount in engineering; strong fit for our ICP.",
+      "funded": true
+    },
+    "_created_at": "2026-05-17T10:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-013",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-13",
+    "entity_name": "Tyrell Bioworks",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Healthcare",
+      "employee_range": "1000-5000",
+      "fit_score": 65,
+      "summary": "Healthcare provider with strict compliance needs; longer sales cycle expected.",
+      "funded": false
+    },
+    "_created_at": "2026-05-18T11:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-014",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-14",
+    "entity_name": "Massive Dynamic",
+    "tags": [
+      "icp_fit"
+    ],
+    "data": {
+      "industry": "FinTech",
+      "employee_range": "5000+",
+      "fit_score": 47,
+      "summary": "FinTech scale-up, well funded, actively buying tooling this fiscal year.",
+      "funded": true
+    },
+    "_created_at": "2026-05-19T12:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-015",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-15",
+    "entity_name": "Oscorp Materials",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Manufacturing",
+      "employee_range": "1-50",
+      "fit_score": 37,
+      "summary": "Legacy manufacturer modernizing its data stack; budget owner is the new CTO.",
+      "funded": false
+    },
+    "_created_at": "2026-05-20T13:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-016",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-16",
+    "entity_name": "Gekko Capital",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Logistics",
+      "employee_range": "51-200",
+      "fit_score": 70,
+      "summary": "Logistics firm with thin margins; price sensitivity is high.",
+      "funded": false
+    },
+    "_created_at": "2026-05-01T14:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-017",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-17",
+    "entity_name": "Bluth Property",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Biotech",
+      "employee_range": "201-1000",
+      "fit_score": 90,
+      "summary": "Biotech research org with grant-driven, lumpy purchasing patterns.",
+      "funded": false
+    },
+    "_created_at": "2026-05-02T15:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-018",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-18",
+    "entity_name": "Dunder Mifflin",
+    "tags": [
+      "icp_fit"
+    ],
+    "data": {
+      "industry": "SaaS",
+      "employee_range": "1000-5000",
+      "fit_score": 40,
+      "summary": "Mid-market SaaS company growing headcount in engineering; strong fit for our ICP.",
+      "funded": true
+    },
+    "_created_at": "2026-05-03T09:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-019",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-19",
+    "entity_name": "Sterling Cooper",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Healthcare",
+      "employee_range": "5000+",
+      "fit_score": 62,
+      "summary": "Healthcare provider with strict compliance needs; longer sales cycle expected.",
+      "funded": false
+    },
+    "_created_at": "2026-05-04T10:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-020",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-20",
+    "entity_name": "Prestige Worldwide",
+    "tags": [
+      "icp_fit"
+    ],
+    "data": {
+      "industry": "FinTech",
+      "employee_range": "1-50",
+      "fit_score": 44,
+      "summary": "FinTech scale-up, well funded, actively buying tooling this fiscal year.",
+      "funded": false
+    },
+    "_created_at": "2026-05-05T11:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-021",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-21",
+    "entity_name": "Vehement Capital",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Manufacturing",
+      "employee_range": "51-200",
+      "fit_score": 40,
+      "summary": "Legacy manufacturer modernizing its data stack; budget owner is the new CTO.",
+      "funded": false
+    },
+    "_created_at": "2026-05-06T12:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-022",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-22",
+    "entity_name": "Aperture Labs",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Logistics",
+      "employee_range": "201-1000",
+      "fit_score": 61,
+      "summary": "Logistics firm with thin margins; price sensitivity is high.",
+      "funded": true
+    },
+    "_created_at": "2026-05-07T13:00:00+00:00"
+  },
+  {
+    "record_id": "enrich-023",
+    "analysis_type": "company_enrichment",
+    "source": "clearbit",
+    "entity_id": "company-23",
+    "entity_name": "Black Mesa",
+    "tags": [
+      "icp_review"
+    ],
+    "data": {
+      "industry": "Biotech",
+      "employee_range": "1000-5000",
+      "fit_score": 23,
+      "summary": "Biotech research org with grant-driven, lumpy purchasing patterns.",
+      "funded": true
+    },
+    "_created_at": "2026-05-08T14:00:00+00:00"
+  }
+]
