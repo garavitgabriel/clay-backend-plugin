@@ -6,6 +6,7 @@ in the same SQLite database the MCP tools use.
 
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import threading
@@ -30,12 +31,13 @@ def _check_auth(request: Request) -> JSONResponse | None:
     if not api_key:
         return None
 
+    # Constant-time comparisons to avoid timing side channels on the secret.
     auth_header = request.headers.get("Authorization", "")
-    if auth_header == f"Bearer {api_key}":
+    if hmac.compare_digest(auth_header, f"Bearer {api_key}"):
         return None
 
     # Also accept X-API-Key header (common in webhook configs)
-    if request.headers.get("X-API-Key", "") == api_key:
+    if hmac.compare_digest(request.headers.get("X-API-Key", ""), api_key):
         return None
 
     return JSONResponse({"error": "Unauthorized"}, status_code=401)

@@ -122,7 +122,7 @@ def _call_anthropic(
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY not set")
 
-    model = schedule.get("model", "claude-sonnet-4-20250514")
+    model = schedule.get("model", os.environ.get("CLAY_SCHEDULER_MODEL", "claude-sonnet-5"))
     context = schedule.get("context", {})
 
     records_text = json.dumps(records, indent=2, default=str)

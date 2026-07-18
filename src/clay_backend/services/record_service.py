@@ -70,6 +70,11 @@ def ingest_records(
                 now = _now_iso()
                 tags_json = json.dumps(rec.tags)
                 data_json = json.dumps(rec.data)
+                # Event time: caller-supplied created_at wins (back-filled imports);
+                # otherwise stamp ingest time. On resend, only an explicit created_at
+                # overwrites the stored value.
+                explicit_created = 1 if rec.created_at else 0
+                created_at = rec.created_at or now
 
                 # Try insert, on conflict update
                 db.execute(
@@ -84,6 +89,9 @@ def ingest_records(
                         entity_id = excluded.entity_id,
                         entity_name = excluded.entity_name,
                         tags = excluded.tags,
+                        created_at = CASE WHEN ? = 1
+                            THEN excluded.created_at
+                            ELSE analysis_records.created_at END,
                         received_at = excluded.received_at
                     """,
                     (
@@ -95,8 +103,9 @@ def ingest_records(
                         rec.entity_id,
                         rec.entity_name,
                         tags_json,
+                        created_at,
                         now,
-                        now,
+                        explicit_created,
                     ),
                 )
 
@@ -167,6 +176,7 @@ def ingest_csv(
     entity_id_column: str | None = None,
     entity_name_column: str | None = None,
     embed_fields: list[str] | None = None,
+    created_at_column: str | None = None,
 ) -> IngestResult:
     """Import records from a CSV file."""
     import csv
@@ -186,6 +196,7 @@ def ingest_csv(
                 data=data,
                 entity_id=row.get(entity_id_column) if entity_id_column else None,
                 entity_name=row.get(entity_name_column) if entity_name_column else None,
+                created_at=(row.get(created_at_column) or None) if created_at_column else None,
             )
             records.append(record)
 
@@ -224,10 +235,12 @@ def query_records(
             conditions.append("data LIKE ?")
             params.append(f"%{search_data}%")
         if tags:
-            # Match records containing any of the specified tags
+            # Match records containing any of the specified tags (OR within the group)
+            tag_conditions = []
             for tag in tags:
-                conditions.append("tags LIKE ?")
+                tag_conditions.append("tags LIKE ?")
                 params.append(f'%"{tag}"%')
+            conditions.append(f"({' OR '.join(tag_conditions)})")
 
         where = f"WHERE {' AND '.join(conditions)}" if conditions else ""
         limit = min(limit, 200)
@@ -327,10 +340,16 @@ def get_analytics(
             params,
         ).fetchall()
 
-        # Get DB file size
-        data_dir = os.environ.get("CLAY_DATA_DIR", ".")
-        db_path = os.path.join(data_dir, "clay.db")
-        size_mb = os.path.getsize(db_path) / (1024 * 1024) if os.path.exists(db_path) else 0
+        # Get DB file size from the same path connections use (incl. WAL/SHM files)
+        from ..database import _get_db_path
+
+        db_path = str(_get_db_path())
+        size_bytes = sum(
+            os.path.getsize(p)
+            for p in (db_path, f"{db_path}-wal", f"{db_path}-shm")
+            if os.path.exists(p)
+        )
+        size_mb = size_bytes / (1024 * 1024)
 
         return AnalyticsSummary(
             total_records=total,

@@ -26,6 +26,8 @@ mcp = FastMCP(
         "Import analysis records from Clay. Accepts a list of records as JSON. "
         "Each record needs a record_id (unique ID from Clay), analysis_type "
         "(e.g. 'call_analysis'), and data (the analysis payload). "
+        "Optionally set created_at (ISO 8601) to the real event time when "
+        "back-filling historical data — time-window queries filter on it. "
         "Deduplicates on record_id + analysis_type — sending the same record "
         "again updates it instead of creating a duplicate."
     ),
@@ -61,7 +63,10 @@ def ingest_records(
         "Provide the file path, which column contains the unique row ID, "
         "a name for the analysis type, and which columns to include as data. "
         "Example: file_path='/tmp/clay_export.csv', record_id_column='Row ID', "
-        "analysis_type='call_analysis', data_columns=['AI Summary', 'Score', 'Rep Name']"
+        "analysis_type='call_analysis', data_columns=['AI Summary', 'Score', 'Rep Name']. "
+        "Optionally set created_at_column to the CSV column holding the real event "
+        "date (e.g. call date) so time-window queries work on back-filled exports "
+        "(local mode only)."
     ),
 )
 def ingest_csv(
@@ -72,6 +77,7 @@ def ingest_csv(
     entity_id_column: str | None = None,
     entity_name_column: str | None = None,
     embed_fields: list[str] | None = None,
+    created_at_column: str | None = None,
 ) -> dict:
     """Import records from a CSV file."""
     try:
@@ -93,6 +99,7 @@ def ingest_csv(
             entity_id_column=entity_id_column,
             entity_name_column=entity_name_column,
             embed_fields=embed_fields,
+            created_at_column=created_at_column,
         )
         return result.model_dump()
     except FileNotFoundError:

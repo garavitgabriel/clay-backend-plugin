@@ -12,8 +12,6 @@ from datetime import datetime, timezone
 import pytest
 
 from clay_backend import scheduler
-from clay_backend.models import RecordInput
-from clay_backend.services import record_service
 
 
 # --------------------------------------------------------------------------- #
@@ -106,16 +104,21 @@ def test_call_anthropic_builds_prompt_and_uses_default_model(monkeypatch):
         {"record_id": "call-001", "data": {"summary": "alpha budget approved"}},
         {"record_id": "call-002", "data": {"summary": "beta ghosting risk"}},
     ]
-    schedule = {"name": "weekly", "context": {"analysis_type": "call_analysis", "since": "7 days ago"}}
+    schedule = {
+        "name": "weekly",
+        "context": {"analysis_type": "call_analysis", "since": "7 days ago"},
+    }
 
     out = scheduler._call_anthropic("SYSTEM PROMPT", records, schedule)
     assert out == "SYNTHESIZED INSIGHT"
 
-    # Default model when schedule doesn't override (FINDINGS: stale id).
-    assert recorder["model"] == "claude-sonnet-4-20250514"
+    # Default model when schedule doesn't override — current Sonnet, env-overridable
+    # (FINDINGS #3 fixed: no longer pinned to a stale dated snapshot).
+    assert recorder["model"] == scheduler.DEFAULT_MODEL
+    assert recorder["model"] != "claude-sonnet-4-20250514"
     assert recorder["system"] == "SYSTEM PROMPT"
 
-    # ALL records are dumped into a single user message (FINDINGS: no chunking).
+    # Records within budget are all included in the user message.
     user_msg = recorder["messages"][0]["content"]
     assert "alpha budget approved" in user_msg
     assert "beta ghosting risk" in user_msg
@@ -128,9 +131,8 @@ def test_call_anthropic_requires_api_key(monkeypatch):
         scheduler._call_anthropic("p", [], {"name": "x"})
 
 
-def test_call_anthropic_dumps_all_records_no_truncation(monkeypatch):
-    """At scale the scheduler serializes EVERY record into one prompt with no
-    token budgeting — this test documents that behavior (see FINDINGS.md)."""
+def test_call_anthropic_keeps_all_records_within_budget(monkeypatch):
+    """Records that fit the prompt budget are all serialized — no silent drops."""
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
     recorder: dict = {}
     monkeypatch.setattr(
@@ -144,6 +146,39 @@ def test_call_anthropic_dumps_all_records_no_truncation(monkeypatch):
     scheduler._call_anthropic("sys", big, {"name": "big"})
 
     user_msg = recorder["messages"][0]["content"]
-    # Every single record's marker is present — nothing was dropped or truncated.
     assert all(f"unique-marker-{i}" in user_msg for i in range(200))
-    assert len(user_msg) > 200 * 200  # whole corpus inlined
+    assert "omitted" not in user_msg
+
+
+def test_call_anthropic_truncates_over_budget_with_note(monkeypatch, caplog):
+    """Over-budget record sets are truncated (oldest dropped) and the prompt
+    carries an explicit omission note — FINDINGS #2 mitigation."""
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-not-real")
+    monkeypatch.setattr(scheduler, "PROMPT_CHAR_BUDGET", 20_000)
+    recorder: dict = {}
+    monkeypatch.setattr(
+        scheduler.anthropic, "Anthropic", lambda api_key: _FakeClient(recorder)
+    )
+
+    big = [
+        {"record_id": f"r{i}", "data": {"summary": f"unique-marker-{i} " + "x" * 200}}
+        for i in range(200)
+    ]
+    with caplog.at_level("WARNING"):
+        scheduler._call_anthropic("sys", big, {"name": "big"})
+
+    user_msg = recorder["messages"][0]["content"]
+    # Newest records kept, oldest dropped, and the omission is stated in-prompt.
+    assert "unique-marker-0" in user_msg
+    assert "unique-marker-199" not in user_msg
+    assert "omitted" in user_msg
+    assert len(user_msg) < 30_000
+    assert any("omitted" in r.message for r in caplog.records)
+
+
+def test_fetch_records_warns_on_cap(ingested, caplog):
+    """Hitting the fetch limit logs a truncation warning — FINDINGS #2 mitigation."""
+    with caplog.at_level("WARNING"):
+        recs = scheduler._fetch_records({"limit": 10})
+    assert len(recs) == 10
+    assert any("cap" in r.message.lower() for r in caplog.records)

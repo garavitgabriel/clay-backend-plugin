@@ -26,6 +26,15 @@ logger = logging.getLogger(__name__)
 SCHEDULES_PATH = os.environ.get("SCHEDULES_PATH", "schedules.yaml")
 SKILLS_DIR = Path(__file__).parent.parent.parent / "skills"
 
+# Default model for scheduled synthesis. Override per-schedule with `model:`
+# in schedules.yaml, or globally via CLAY_SCHEDULER_MODEL.
+DEFAULT_MODEL = os.environ.get("CLAY_SCHEDULER_MODEL", "claude-sonnet-5")
+
+# Rough guard against overflowing the model's context window: serialized records
+# beyond this many characters are dropped (most-recent kept) and the synthesis
+# prompt is told how many were omitted. ~4 chars/token → ~100k tokens of records.
+PROMPT_CHAR_BUDGET = int(os.environ.get("CLAY_PROMPT_CHAR_BUDGET", "400000"))
+
 
 def _load_skill(skill_name: str) -> str:
     """Load a SKILL.md file and return the body (without frontmatter)."""
@@ -74,14 +83,22 @@ def _fetch_records(context: dict) -> list[dict]:
     if since:
         since = _resolve_since(since)
 
+    limit = context.get("limit", 100)
     records = record_service.query_records(
         analysis_type=context.get("analysis_type"),
         entity_id=context.get("entity_id"),
         tags=context.get("tags"),
         since=since,
         until=context.get("until"),
-        limit=context.get("limit", 100),
+        limit=limit,
     )
+    if len(records) >= min(limit, 200):
+        logger.warning(
+            "Fetch cap hit (%d records) — older records in the window were NOT "
+            "fetched and the synthesis will only cover the most recent ones. "
+            "Raise context.limit (max 200) or narrow the time window.",
+            len(records),
+        )
     return [r.model_dump() for r in records]
 
 
@@ -91,16 +108,39 @@ def _call_anthropic(skill_prompt: str, records: list[dict], schedule: dict) -> s
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY not set — required for scheduled synthesis")
 
-    model = schedule.get("model", "claude-sonnet-4-20250514")
+    model = schedule.get("model", DEFAULT_MODEL)
     context = schedule.get("context", {})
 
-    # Build the user message with records
-    records_text = json.dumps(records, indent=2, default=str)
+    # Serialize records, dropping the oldest if they blow the prompt budget.
+    # Records arrive most-recent-first from query_records.
+    included = list(records)
+    records_text = json.dumps(included, indent=2, default=str)
+    omitted = 0
+    while len(records_text) > PROMPT_CHAR_BUDGET and len(included) > 1:
+        # Drop in chunks proportional to the overshoot to avoid O(n^2) re-dumps
+        overshoot = len(records_text) / PROMPT_CHAR_BUDGET
+        drop = max(1, int(len(included) * (1 - 1 / overshoot)))
+        included = included[: len(included) - drop]
+        omitted = len(records) - len(included)
+        records_text = json.dumps(included, indent=2, default=str)
+    if omitted:
+        logger.warning(
+            "Prompt budget (%d chars) exceeded — %d of %d records omitted from "
+            "the synthesis prompt (oldest dropped). Narrow the schedule window "
+            "or lower context.limit for full coverage.",
+            PROMPT_CHAR_BUDGET, omitted, len(records),
+        )
+
     user_message = (
         f"Analysis type: {context.get('analysis_type', 'all')}\n"
         f"Time period: {context.get('since', 'all time')}\n"
-        f"Record count: {len(records)}\n\n"
-        f"Records:\n{records_text}"
+        f"Record count: {len(included)}"
+        + (
+            f" (NOTE: {omitted} additional matching records were omitted to fit "
+            f"the prompt budget — state this limitation in your analysis)"
+            if omitted else ""
+        )
+        + f"\n\nRecords:\n{records_text}"
     )
 
     # Add any custom prompt from the schedule config
@@ -111,7 +151,7 @@ def _call_anthropic(skill_prompt: str, records: list[dict], schedule: dict) -> s
     client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(
         model=model,
-        max_tokens=4096,
+        max_tokens=schedule.get("max_tokens", 8192),
         system=skill_prompt,
         messages=[{"role": "user", "content": user_message}],
     )

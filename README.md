@@ -266,6 +266,8 @@ Records use a **flexible JSON schema** — not tied to sales, support, or any sp
 
 Only `record_id`, `analysis_type`, and `data` are required. Everything else is optional.
 
+**Event time (`created_at`)**: Optionally include `created_at` (ISO 8601) when the analyzed event happened earlier than the import — e.g. back-filling a month of call analyses. Time-window queries (`since`/`until`, scheduled "last 7 days" runs) filter on this field, so without it, bulk imports all collapse to the import date. CSV imports can map it with `created_at_column`.
+
 **Deduplication**: Records are uniquely identified by `record_id` + `analysis_type`. Sending the same combination again updates the existing record.
 
 **Cross-record joins**: Use `entity_id` when the same deal/company/prospect is analyzed in multiple tables (e.g., BDR call analysis + AE call analysis + email sentiment). This is what enables cross-stage comparison.
@@ -390,9 +392,7 @@ Webhook: http://localhost:8742/webhook
 
 Don't want to deal with ngrok? Deploy the webhook receiver as a tiny hosted service and get a permanent URL.
 
-**One-click deploy:**
-
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.app/template) <!-- TODO: add template link -->
+**Deploy to Railway/Render:** the repo includes `railway.toml`, `nixpacks.toml`, and `hosted/render.yaml` — point either platform at the repo and it builds the `hosted/` service. Set `DATABASE_URL` (PostgreSQL) and `API_KEY` in the environment.
 
 **Or deploy manually:**
 ```bash
@@ -424,19 +424,26 @@ In remote mode, the plugin queries the hosted service instead of local SQLite. N
 ## Development
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/garavitgabriel/clay-backend-plugin.git
 cd clay-backend-plugin
-uv venv && uv pip install -e ".[local-embeddings]"
+
+# Install everything (venv + local embeddings + scheduler + pytest)
+make install
+# — or manually:
+uv venv && uv pip install -e ".[local-embeddings,scheduler]"
 
 # Test with Claude Code
 claude --plugin-dir .
 
-# Lint
-ruff check src/
-
-# Run tests
-uv run pytest
+# Run tests / lint / end-to-end smoke (webhook → ingest → search)
+make test
+make lint
+make smoke
 ```
+
+> The `scheduler` extra (anthropic, apscheduler, pyyaml, httpx) is required for
+> `clay_backend.scheduler` — scheduled analysis via `schedules.yaml`. The plain
+> `[local-embeddings]` install covers everything else.
 
 ## Roadmap
 
@@ -451,6 +458,8 @@ uv run pytest
 - [x] Scheduled skill execution (cron → Anthropic API → Slack/Clay delivery)
 - [ ] Embeddings support in hosted mode (pgvector)
 - [ ] Email output for scheduled reports
+- [ ] Map-reduce chunking for scheduled synthesis over very large record sets (current: prompt budget with explicit omission note)
+- [ ] `semantic_search` type-filter candidate expansion (sparse types can return fewer than `top_k`)
 
 ## License
 

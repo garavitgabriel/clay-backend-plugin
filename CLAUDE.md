@@ -12,6 +12,7 @@ A Claude Code plugin that stores Clay (clay.com) per-record AI analysis results 
 # Install dependencies
 uv pip install -e ".[local-embeddings]"   # with local sentence-transformers
 uv pip install -e ".[openai]"             # with OpenAI embeddings
+uv pip install -e ".[local-embeddings,scheduler]"  # + scheduled analysis (schedules.yaml)
 uv pip install -e .                       # core only (no embeddings)
 
 # Run MCP server (normally started by Claude Code automatically)

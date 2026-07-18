@@ -22,7 +22,12 @@ class LocalEmbeddingProvider(EmbeddingProvider):
             )
         self._model = SentenceTransformer(model_name)
         self._model_name = model_name
-        self._dimension = self._model.get_sentence_embedding_dimension()
+        # sentence-transformers >=5 renamed get_sentence_embedding_dimension()
+        # to get_embedding_dimension(); support both.
+        if hasattr(self._model, "get_embedding_dimension"):
+            self._dimension = self._model.get_embedding_dimension()
+        else:
+            self._dimension = self._model.get_sentence_embedding_dimension()
 
     def embed(self, text: str) -> list[float]:
         return self._model.encode(text).tolist()

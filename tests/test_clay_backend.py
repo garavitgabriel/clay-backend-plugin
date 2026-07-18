@@ -6,8 +6,6 @@ not trivial asserts. See FINDINGS.md for bugs these tests surfaced.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-
 import pytest
 
 from clay_backend.database import get_connection, get_vec_dimension, init_vec_table
@@ -165,11 +163,6 @@ def test_query_filter_single_tag(ingested):
     assert all("champion_identified" in r.tags for r in rows)
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason="BUG: multi-tag filter uses AND not OR — see FINDINGS.md #1 "
-    "(record_service.py:226-230 comment says 'any' but conditions are AND-joined)",
-)
 def test_query_filter_multiple_tags_or_semantics(ingested):
     # The code comment promises OR ("any of the specified tags"). These two tags
     # never co-occur on a record, so OR should return both groups; AND returns 0.

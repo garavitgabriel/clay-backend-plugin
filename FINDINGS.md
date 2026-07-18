@@ -5,6 +5,19 @@ Validation run on 2026-06-25. Local SQLite + sqlite-vec + local sentence-transfo
 loop mechanically holds (see `tests/` → `uv run pytest`, and `tests/smoke_local.py`),
 but the dogfood surfaced one real logic bug and several scale/correctness smells.
 
+> **Remediation pass 2026-07-18** — status per finding:
+> - **#1 tag OR semantics — FIXED** (per-tag conditions grouped with OR; strict xfail test now a passing test)
+> - **#2 scheduler cap/prompt — MITIGATED** (cap-hit warning logged; prompt char budget `CLAY_PROMPT_CHAR_BUDGET` drops oldest records with an explicit in-prompt omission note; `max_tokens` raised to 8192, per-schedule override). Full map-reduce chunking + `offset` pagination remains roadmap.
+> - **#3 stale model id — FIXED** (defaults to `claude-sonnet-5`, overridable via `CLAY_SCHEDULER_MODEL` or per-schedule `model:`; hosted scheduler too)
+> - **#4 created_at — FIXED** (`RecordInput.created_at` optional event time honored on insert; explicit value overwrites on resend; `ingest_csv` gained `created_at_column`; local mode only)
+> - **#5 db-path drift — FIXED** (analytics size derives from `database._get_db_path()` and includes `-wal`/`-shm`)
+> - **#6 scheduler extra undocumented — FIXED** (README + CLAUDE.md document `[local-embeddings,scheduler]`; Makefile `install` already pulled it)
+> - **#7 non-constant-time key compare — FIXED** (`hmac.compare_digest`)
+> - **#8 semantic_search type-filter under-return — OPEN** (roadmap; low impact)
+> - **#9 deprecated dimension call — FIXED** (uses `get_embedding_dimension()` when available, falls back for older sentence-transformers)
+>
+> Suite after the pass: 37 passed, lint clean, smoke green.
+
 Severity legend: **HIGH** = wrong results or breaks at realistic scale · **MED** =
 silently misleading · **LOW** = cosmetic / hardening.
 

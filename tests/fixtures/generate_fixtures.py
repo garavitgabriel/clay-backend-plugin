@@ -101,7 +101,9 @@ def generate() -> list[dict]:
             "data": {
                 "rep": rng.choice(REPS),
                 "score": score,
-                "sentiment": "positive" if score >= 70 else ("neutral" if score >= 50 else "negative"),
+                "sentiment": (
+                    "positive" if score >= 70 else ("neutral" if score >= 50 else "negative")
+                ),
                 "summary": CALL_SUMMARIES[idx],
                 "duration_min": rng.randint(12, 58),
                 "next_steps": idx not in (1, 4),

@@ -15,6 +15,14 @@ class RecordInput(BaseModel):
     entity_id: str | None = Field(None, description="Shared ID for cross-record joins")
     entity_name: str | None = Field(None, description="Human-readable entity label")
     tags: list[str] = Field(default_factory=list, description="Grouping tags")
+    created_at: str | None = Field(
+        None,
+        description=(
+            "Optional event timestamp (ISO 8601) — when the analyzed event actually "
+            "happened (e.g. call date). Defaults to ingest time when omitted. "
+            "Time-window queries filter on this field."
+        ),
+    )
 
 
 class Record(BaseModel):
