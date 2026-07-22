@@ -1,6 +1,5 @@
 # Clay Backend Plugin
 
-[![CI](https://github.com/garavitgabriel/clay-backend-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/garavitgabriel/clay-backend-plugin/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](pyproject.toml)
 
