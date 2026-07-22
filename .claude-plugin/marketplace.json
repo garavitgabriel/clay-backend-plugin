@@ -1,0 +1,13 @@
+{
+  "name": "garavitgabriel",
+  "owner": {
+    "name": "Gabriel Garavit"
+  },
+  "plugins": [
+    {
+      "name": "clay-backend-plugin",
+      "source": "./",
+      "description": "Store, search, and analyze patterns across your Clay data. Import CSV/JSON exports or receive webhooks, and let Claude find insights across records."
+    }
+  ]
+}

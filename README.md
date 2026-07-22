@@ -1,5 +1,9 @@
 # Clay Backend Plugin
 
+[![CI](https://github.com/garavitgabriel/clay-backend-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/garavitgabriel/clay-backend-plugin/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](pyproject.toml)
+
 A Claude Code plugin that fills Clay's aggregation gap. Clay analyzes data one row at a time — this plugin stores those results, adds semantic search, and lets Claude find patterns across all your records.
 
 > "Insufficient discovery in 8 of 10 calls this week. Budget qualification is the #1 gap — and it's getting worse."
@@ -12,8 +16,11 @@ A Claude Code plugin that fills Clay's aggregation gap. Clay analyzes data one r
 
 ## Quick Start
 
+In Claude Code:
+
 ```
-/plugin install clay-backend-plugin
+/plugin marketplace add garavitgabriel/clay-backend-plugin
+/plugin install clay-backend-plugin@garavitgabriel
 ```
 
 Tell Claude: **"I have a Clay export to analyze"** — the plugin guides you through import, then you ask questions.
@@ -461,6 +468,14 @@ make smoke
 - [ ] Map-reduce chunking for scheduled synthesis over very large record sets (current: prompt budget with explicit omission note)
 - [ ] `semantic_search` type-filter candidate expansion (sparse types can return fewer than `top_k`)
 
+## Contributing
+
+Issues and PRs welcome. Run `make install && make test && make lint` before submitting — the CI runs the same suite.
+
 ## License
 
-MIT
+[MIT](LICENSE)
+
+---
+
+Built by [Gabriel Garavit](https://github.com/garavitgabriel).
