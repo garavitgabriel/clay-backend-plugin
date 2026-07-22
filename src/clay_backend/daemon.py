@@ -49,8 +49,8 @@ def main():
     parser.add_argument(
         "--host",
         type=str,
-        default="0.0.0.0",
-        help="Host to bind to (default: 0.0.0.0)",
+        default=os.environ.get("WEBHOOK_HOST", "127.0.0.1"),
+        help="Host to bind to (default: 127.0.0.1; use 0.0.0.0 to expose beyond this machine)",
     )
     parser.add_argument(
         "--schedules",

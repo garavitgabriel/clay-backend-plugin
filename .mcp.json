@@ -9,6 +9,7 @@
         "OPENAI_API_KEY": "${user_config.OPENAI_API_KEY}",
         "EMBEDDING_PROVIDER": "${user_config.EMBEDDING_PROVIDER}",
         "WEBHOOK_PORT": "${user_config.WEBHOOK_PORT}",
+        "WEBHOOK_HOST": "${user_config.WEBHOOK_HOST}",
         "WEBHOOK_API_KEY": "${user_config.WEBHOOK_API_KEY}",
         "REMOTE_URL": "${user_config.REMOTE_URL}",
         "REMOTE_API_KEY": "${user_config.REMOTE_API_KEY}"

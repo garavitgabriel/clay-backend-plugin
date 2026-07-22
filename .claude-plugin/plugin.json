@@ -23,6 +23,11 @@
       "default": "8742",
       "required": false
     },
+    "WEBHOOK_HOST": {
+      "description": "Bind address for the webhook server. 127.0.0.1 (default) = this machine only; 0.0.0.0 exposes it to your network — set WEBHOOK_API_KEY if you do",
+      "default": "127.0.0.1",
+      "required": false
+    },
     "WEBHOOK_API_KEY": {
       "description": "API key to protect the webhook endpoint (local mode with ngrok)",
       "sensitive": true,

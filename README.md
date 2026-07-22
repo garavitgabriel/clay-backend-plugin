@@ -92,6 +92,8 @@ Use the ngrok URL (e.g., `https://abc123.ngrok-free.app/webhook`) in Clay instea
 
 **Security:** Set `WEBHOOK_API_KEY` in the plugin config when exposing via ngrok. The webhook endpoint will require `Authorization: Bearer <key>` on all requests. Ask Claude "what's the webhook URL?" — it will show the exact header to add in Clay.
 
+The webhook server binds to `127.0.0.1` (this machine only) by default — ngrok tunnels to localhost, so nothing more is needed. Set `WEBHOOK_HOST=0.0.0.0` (or `clay-webhook-daemon --host 0.0.0.0`) only if another device on your network must reach it directly, and set `WEBHOOK_API_KEY` if you do.
+
 ### Option 2: CSV Import
 
 Export your Clay table as CSV, then:

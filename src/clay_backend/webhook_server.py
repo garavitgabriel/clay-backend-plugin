@@ -23,6 +23,7 @@ from .services import record_service
 logger = logging.getLogger(__name__)
 
 DEFAULT_PORT = 8742
+DEFAULT_HOST = "127.0.0.1"
 
 
 def _check_auth(request: Request) -> JSONResponse | None:
@@ -109,10 +110,14 @@ def start_webhook_server(port: int | None = None) -> threading.Thread:
     Returns the thread (already started).
     """
     port = port or int(os.environ.get("WEBHOOK_PORT", str(DEFAULT_PORT)))
+    # Loopback by default: ngrok forwards to localhost, so exposing the port to
+    # the whole LAN buys nothing and opens unauthenticated ingest when no
+    # WEBHOOK_API_KEY is set. Set WEBHOOK_HOST=0.0.0.0 to opt into a wider bind.
+    host = os.environ.get("WEBHOOK_HOST", DEFAULT_HOST)
 
     config = uvicorn.Config(
         app,
-        host="0.0.0.0",
+        host=host,
         port=port,
         log_level="warning",
     )
@@ -121,5 +126,5 @@ def start_webhook_server(port: int | None = None) -> threading.Thread:
     thread = threading.Thread(target=server.run, daemon=True, name="webhook-server")
     thread.start()
 
-    logger.info(f"Webhook server started on http://0.0.0.0:{port}/webhook")
+    logger.info(f"Webhook server started on http://{host}:{port}/webhook")
     return thread
