@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import hmac
 import logging
-import os
 import threading
 
 import uvicorn
@@ -17,18 +16,19 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from . import config
 from .models import RecordInput
 from .services import record_service
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PORT = 8742
-DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = config.DEFAULT_WEBHOOK_PORT
+DEFAULT_HOST = config.DEFAULT_WEBHOOK_HOST
 
 
 def _check_auth(request: Request) -> JSONResponse | None:
     """Verify API key if WEBHOOK_API_KEY is set. Returns error response or None."""
-    api_key = os.environ.get("WEBHOOK_API_KEY", "")
+    api_key = config.webhook_api_key()
     if not api_key:
         return None
 
@@ -88,12 +88,34 @@ async def handle_webhook(request: Request) -> JSONResponse:
     result = record_service.ingest_records(parsed, embed_fields=embed_fields)
     result.errors.extend(errors)
 
-    return JSONResponse(result.model_dump())
+    payload = result.model_dump()
+
+    # Running totals per analysis_type. This response lands in a Clay cell, so
+    # it doubles as a progress meter for the column ("17 of my 20 rows landed").
+    payload["total_for_type"] = {
+        t: record_service.count_by_type(t)
+        for t in sorted({rec.analysis_type for rec in parsed})
+    }
+
+    return JSONResponse(payload)
 
 
 async def health(request: Request) -> JSONResponse:
-    """Health check endpoint."""
-    return JSONResponse({"status": "ok", "service": "clay-backend-webhook"})
+    """Health check endpoint.
+
+    Reports the resolved database path so an operator (or the MCP server's
+    coexistence probe) can tell at a glance whether the daemon and the plugin
+    are pointed at the same clay.db.
+    """
+    from .database import get_db_path
+
+    return JSONResponse(
+        {
+            "status": "ok",
+            "service": "clay-backend-webhook",
+            "db_path": get_db_path(),
+        }
+    )
 
 
 app = Starlette(
@@ -104,24 +126,129 @@ app = Starlette(
 )
 
 
+def _connect_host(host: str) -> str:
+    """The address to dial when probing a server bound to `host`."""
+    return "127.0.0.1" if host in ("0.0.0.0", "::", "") else host
+
+
+def probe_port(host: str, port: int, timeout: float = 0.75) -> tuple[str, dict]:
+    """Find out who, if anyone, is already listening on (host, port).
+
+    Returns one of:
+      ("free",  {})                 — nothing is listening
+      ("clay",  {<health payload>}) — a clay-backend webhook receiver answers
+      ("other", {})                 — something else holds the port
+    """
+    import json as _json
+    import socket
+    import urllib.error
+    import urllib.request
+
+    target = _connect_host(host)
+
+    try:
+        with socket.create_connection((target, port), timeout=timeout):
+            pass
+    except OSError:
+        return "free", {}
+
+    try:
+        with urllib.request.urlopen(
+            f"http://{target}:{port}/health", timeout=timeout
+        ) as resp:
+            payload = _json.loads(resp.read().decode("utf-8"))
+    except (urllib.error.URLError, OSError, ValueError):
+        return "other", {}
+
+    if isinstance(payload, dict) and payload.get("service") == "clay-backend-webhook":
+        return "clay", payload
+
+    return "other", {}
+
+
+def ensure_webhook_server(port: int | None = None) -> dict:
+    """Start the webhook receiver unless something already owns the port.
+
+    Coexisting with a standalone `clay-webhook-daemon` is a supported topology
+    (24/7 ingest + interactive Claude Code sessions), so a busy port is not an
+    error — it just means this process should not start a second receiver.
+    Silently losing the bind inside a daemon thread is what made this confusing
+    in the field, so every outcome is reported.
+
+    Returns {"status": "started" | "external" | "conflict", "port": int, ...}.
+    """
+    from .database import get_db_path
+
+    port = port or config.webhook_port()
+    host = config.webhook_host()
+
+    status, info = probe_port(host, port)
+
+    if status == "clay":
+        detail = {
+            "status": "external",
+            "port": port,
+            "host": host,
+            "message": (
+                f"External clay-backend webhook daemon detected on port {port} — "
+                f"not starting a second receiver."
+            ),
+        }
+        remote_db = info.get("db_path")
+        if remote_db:
+            detail["daemon_db_path"] = remote_db
+            local_db = get_db_path()
+            if remote_db != local_db:
+                detail["warning"] = (
+                    f"That daemon writes to {remote_db} but this session reads "
+                    f"{local_db}. Records ingested by the daemon will not show up "
+                    f"here. Set CLAY_DATA_DIR to the same directory for both."
+                )
+        logger.warning(detail.get("warning") or detail["message"])
+        return detail
+
+    if status == "other":
+        detail = {
+            "status": "conflict",
+            "port": port,
+            "host": host,
+            "message": (
+                f"Port {port} is held by another process that is not a clay-backend "
+                f"webhook receiver. The webhook endpoint is unavailable this session. "
+                f"Free the port, or set WEBHOOK_PORT to something else."
+            ),
+        }
+        logger.warning(detail["message"])
+        return detail
+
+    thread = start_webhook_server(port)
+    return {
+        "status": "started",
+        "port": port,
+        "host": host,
+        "thread": thread,
+        "message": f"Webhook server listening on http://{host}:{port}/webhook",
+    }
+
+
 def start_webhook_server(port: int | None = None) -> threading.Thread:
     """Start the webhook HTTP server in a background daemon thread.
 
     Returns the thread (already started).
     """
-    port = port or int(os.environ.get("WEBHOOK_PORT", str(DEFAULT_PORT)))
+    port = port or config.webhook_port()
     # Loopback by default: ngrok forwards to localhost, so exposing the port to
     # the whole LAN buys nothing and opens unauthenticated ingest when no
     # WEBHOOK_API_KEY is set. Set WEBHOOK_HOST=0.0.0.0 to opt into a wider bind.
-    host = os.environ.get("WEBHOOK_HOST", DEFAULT_HOST)
+    host = config.webhook_host()
 
-    config = uvicorn.Config(
+    server_config = uvicorn.Config(
         app,
         host=host,
         port=port,
         log_level="warning",
     )
-    server = uvicorn.Server(config)
+    server = uvicorn.Server(server_config)
 
     thread = threading.Thread(target=server.run, daemon=True, name="webhook-server")
     thread.start()

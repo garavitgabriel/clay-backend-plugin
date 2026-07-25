@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import logging
+import sys
+
 from mcp.server.fastmcp import FastMCP
 
-from .database import init_db
+from . import config
+from .database import get_db_path, init_db, vec_available, vec_unavailable_reason
 from .models import RecordInput
 from .services import record_service, remote_service, search_service
+
+logger = logging.getLogger(__name__)
 
 mcp = FastMCP(
     name="clay-backend",
@@ -294,11 +300,9 @@ def semantic_search(
 )
 def get_webhook_url() -> dict:
     """Get the webhook server URL."""
-    import os
-
     if remote_service.is_remote():
-        remote_url = os.environ.get("REMOTE_URL", "").rstrip("/")
-        api_key = os.environ.get("REMOTE_API_KEY", "")
+        remote_url = config.remote_url()
+        api_key = config.remote_api_key()
         info: dict = {
             "webhook_url": f"{remote_url}/webhook",
             "health_url": f"{remote_url}/health",
@@ -319,8 +323,8 @@ def get_webhook_url() -> dict:
             }
         return info
 
-    port = int(os.environ.get("WEBHOOK_PORT", "8742"))
-    api_key = os.environ.get("WEBHOOK_API_KEY", "")
+    port = config.webhook_port()
+    api_key = config.webhook_api_key()
 
     info = {
         "webhook_url": f"http://localhost:{port}/webhook",
@@ -346,20 +350,65 @@ def get_webhook_url() -> dict:
         info["authentication"] = "None (set WEBHOOK_API_KEY to require auth)"
 
     info["external_access"] = (
-        f"For Clay cloud, run: ngrok http {port} — then use the ngrok URL."
+        f"For Clay cloud, expose port {port} with a tunnel: "
+        f"`cloudflared tunnel --url http://127.0.0.1:{port}` (no account needed) "
+        f"or `ngrok http {port}`. Then use the tunnel URL + /webhook in Clay."
+    )
+    info["verify"] = (
+        "Before wiring Clay, confirm the tunnel reaches you: "
+        "curl https://<tunnel-host>/health"
     )
 
     return info
 
 
+@mcp.tool(
+    name="doctor",
+    description=(
+        "Run first-run diagnostics on the plugin's environment. Checks SQLite "
+        "extension support, the resolved database path and record counts, webhook "
+        "port availability (including whether a standalone daemon owns it), the "
+        "embedding provider, and webhook authentication. Use this whenever the "
+        "plugin reports zero records, semantic search fails, or setup looks wrong."
+    ),
+)
+def doctor() -> dict:
+    """Run environment diagnostics."""
+    from .doctor import run_checks
+
+    return run_checks()
+
+
 def main():
     """Entry point for the MCP server."""
+    # stdout is the MCP transport — every human-readable line must go to stderr.
+    # WARNING keeps the stream to things the user can act on (port conflicts,
+    # split-brain data dirs, degraded vector search) rather than per-request noise.
+    logging.basicConfig(
+        level=logging.WARNING,
+        stream=sys.stderr,
+        format="%(asctime)s [%(name)s] %(levelname)s: %(message)s",
+    )
+
     if not remote_service.is_remote():
         init_db()
-        # Start webhook HTTP server in background (local mode only)
-        from .webhook_server import start_webhook_server
+        print(f"clay-backend: database at {get_db_path()}", file=sys.stderr)
+        if not vec_available():
+            print(
+                f"clay-backend: semantic search disabled — {vec_unavailable_reason()}",
+                file=sys.stderr,
+            )
 
-        start_webhook_server()
+        # Start the webhook HTTP server in the background (local mode only),
+        # unless a standalone daemon already owns the port.
+        from .webhook_server import ensure_webhook_server
+
+        status = ensure_webhook_server()
+        print(f"clay-backend: {status['message']}", file=sys.stderr)
+        if status.get("warning"):
+            print(f"clay-backend: {status['warning']}", file=sys.stderr)
+    else:
+        print(f"clay-backend: remote mode — {config.remote_url()}", file=sys.stderr)
 
     mcp.run(transport="stdio")
 

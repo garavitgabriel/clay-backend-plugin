@@ -1,13 +1,17 @@
 {
   "name": "clay-backend-plugin",
   "description": "Store, search, and analyze patterns across your Clay data. Import CSV/JSON exports and let Claude find insights across records.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "author": {
     "name": "Gabriel Garavit"
   },
   "license": "MIT",
   "keywords": ["clay", "aggregation", "embeddings", "sales", "analysis"],
   "userConfig": {
+    "CLAY_DATA_DIR": {
+      "description": "Directory holding clay.db. Leave empty to use ~/.clay-backend — the same default clay-webhook-daemon uses, so the plugin and the daemon share one database. If you change it, pass the same path to the daemon via --data-dir.",
+      "required": false
+    },
     "OPENAI_API_KEY": {
       "description": "OpenAI API key for embeddings (optional — falls back to local model)",
       "sensitive": true,

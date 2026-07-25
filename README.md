@@ -77,22 +77,87 @@ Each time Clay processes a row, the result flows into the plugin automatically.
 
 **Connecting Clay Cloud to your local machine:**
 
-Clay runs in the cloud, so it can't reach `localhost` directly. Use [ngrok](https://ngrok.com) to create a secure tunnel:
+Clay runs in the cloud, so it can't reach `localhost` directly. You need a tunnel. Either works:
 
 ```bash
-# Install and authenticate (one-time)
+# Option A: cloudflared — no account, no signup, one command
+brew install cloudflared
+cloudflared tunnel --url http://127.0.0.1:8742
+
+# Option B: ngrok — free account required
 brew install ngrok
 ngrok config add-authtoken <your-token>    # free account at ngrok.com
-
-# Start tunnel
 ngrok http 8742
 ```
 
-Use the ngrok URL (e.g., `https://abc123.ngrok-free.app/webhook`) in Clay instead of localhost.
+Both print a public HTTPS URL. Use it plus `/webhook` in Clay (e.g. `https://abc123.trycloudflare.com/webhook`).
 
-**Security:** Set `WEBHOOK_API_KEY` in the plugin config when exposing via ngrok. The webhook endpoint will require `Authorization: Bearer <key>` on all requests. Ask Claude "what's the webhook URL?" — it will show the exact header to add in Clay.
+Note that on the free tier of either tool the URL changes every time the tunnel restarts, and you'll have to update the Clay column. [Hosted mode](#hosted-mode-optional) gives you a permanent URL instead.
 
-The webhook server binds to `127.0.0.1` (this machine only) by default — ngrok tunnels to localhost, so nothing more is needed. Set `WEBHOOK_HOST=0.0.0.0` (or `clay-webhook-daemon --host 0.0.0.0`) only if another device on your network must reach it directly, and set `WEBHOOK_API_KEY` if you do.
+**Verify before wiring Clay.** Two curls save a lot of guessing — do these while the tunnel is running, before you touch the Clay column:
+
+```bash
+# 1. Does the tunnel reach your machine at all?
+curl https://<your-tunnel-host>/health
+# -> {"status":"ok","service":"clay-backend-webhook","db_path":"/Users/you/.clay-backend/clay.db"}
+
+# 2. Does an authenticated write land?
+curl -X POST https://<your-tunnel-host>/webhook \
+  -H "Authorization: Bearer $WEBHOOK_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"record_id":"smoke-1","analysis_type":"smoke_test","data":{"hello":"world"}}'
+# -> {"ingested":1,"updated":0,"errors":[],"total_for_type":{"smoke_test":1}}
+```
+
+If step 1 fails, the problem is the tunnel. If step 2 returns `401`, the problem is the API key. If both pass, anything that breaks afterward is the Clay column config — a much smaller search space. Clean up with "delete the smoke_test records" in Claude Code.
+
+Stuck? Run `clay-backend-doctor` (see [Diagnostics](#diagnostics)).
+
+**Security:** Set `WEBHOOK_API_KEY` in the plugin config when exposing via a tunnel. The webhook endpoint will require `Authorization: Bearer <key>` on all requests. Ask Claude "what's the webhook URL?" — it will show the exact header to add in Clay.
+
+The webhook server binds to `127.0.0.1` (this machine only) by default — tunnels connect to localhost, so nothing more is needed. Set `WEBHOOK_HOST=0.0.0.0` (or `clay-webhook-daemon --host 0.0.0.0`) only if another device on your network must reach it directly, and set `WEBHOOK_API_KEY` if you do.
+
+#### Clay integration pattern (what actually works in production)
+
+Hand-writing JSON in Clay's HTTP API body editor works for simple payloads, but breaks down fast: merge tokens containing quotes or newlines corrupt the JSON, and array columns arrive as strings like `"['a@x.com', 'b@x.com']"` instead of real arrays. Both failure modes are silent — Clay reports a 200 and you find out later that half your rows are malformed.
+
+The reliable pattern is **build the payload in a formula column, then reference that one column in the body**:
+
+**Step 1** — add a Clay **formula column** (call it `Webhook Payload`) that builds the whole object in JavaScript, where merge tokens are real values rather than text substituted into a string:
+
+```javascript
+JSON.stringify({
+  record_id: {{Row ID}},
+  analysis_type: "sequence_qa",
+  entity_id: {{Company Domain}},
+  entity_name: {{Company Name}},
+  data: {
+    prospect_title: {{Title}},
+    emails: {{Generated Emails}},        // stays a real array
+    ai_summary: {{AI Analysis}},         // quotes/newlines escaped correctly
+    score: {{Fit Score}}
+  }
+})
+```
+
+**Step 2** — in the **HTTP API** column, reference that single column as the entire body:
+
+| Setting | Value |
+|---------|-------|
+| Method | `POST` |
+| URL | `https://<your-tunnel-host>/webhook` |
+| Headers | `Authorization: Bearer <your WEBHOOK_API_KEY>`<br>`Content-Type: application/json` |
+| Body | `Clay.formatForJSON({{Webhook Payload}})` |
+
+Why this is better: `JSON.stringify` handles all escaping, arrays stay arrays, the payload is inspectable in its own column before it's ever sent, and changing the shape means editing one formula instead of re-escaping a body template.
+
+The response lands back in the HTTP API column's cell, so the Clay table doubles as a progress meter:
+
+```json
+{"ingested": 1, "updated": 0, "errors": [], "total_for_type": {"sequence_qa": 17}}
+```
+
+`updated: 1` instead of `ingested: 1` means Clay re-ran a row it had already sent — that's deduplication working, not an error.
 
 ### Option 2: CSV Import
 
@@ -206,33 +271,139 @@ clay-webhook-daemon
 
 This runs the webhook receiver as a separate background process. Same database — when you open Claude Code next, all records are already there.
 
+On startup it prints the absolute path of the database it opened — check that line matches what `get_analytics` reports inside Claude Code. See [Where Your Data Lives](#where-your-data-lives).
+
+```
+Clay webhook daemon starting on http://127.0.0.1:8742
+Database:         /Users/you/.clay-backend/clay.db
+Webhook endpoint: http://127.0.0.1:8742/webhook
+Health check:     http://127.0.0.1:8742/health
+```
+
 ```bash
-# Custom port and data directory
+# Custom port and data directory (set CLAY_DATA_DIR for Claude Code to match)
 clay-webhook-daemon --port 9000 --data-dir ~/clay-data
 
-# Run in background on Mac
-nohup clay-webhook-daemon > /dev/null 2>&1 &
+# Run in background on Mac — keep the log, it has the DB path in it
+nohup clay-webhook-daemon > ~/.clay-backend/daemon.log 2>&1 &
 ```
+
+Running the daemon and Claude Code at the same time is fine — see [Running the Daemon and Claude Code Together](#running-the-daemon-and-claude-code-together).
 
 ---
 
 ## Embeddings
 
-Embeddings power semantic search — finding records by meaning, not just keywords.
+**Skip this until you pass roughly 1,000 records.** Embeddings are the most common setup-anxiety item and the least necessary one at the start. At small record counts, `query_records` filters plus text search answer essentially everything — a table of a few dozen rows is fully served with embeddings switched off.
+
+Embeddings buy you one thing: finding records by *meaning* rather than keyword. That matters when you have enough records that you can no longer scan them, and when the wording varies ("no budget", "pricing is a stretch", "need to check with finance" all being the same concern). Turn them on then.
 
 | Provider | Cost | Setup |
 |----------|------|-------|
-| **OpenAI** (recommended) | ~$0.008 / 1,000 records | Set `OPENAI_API_KEY` in plugin config |
-| **Local** | Free | `pip install clay-backend-plugin[local-embeddings]` (~80MB model) |
-| **None** | — | Skip embeddings. Filters and text search still work. |
+| **None** (start here) | — | Do nothing. Filters and text search still work. |
+| **OpenAI** | ~$0.008 / 1,000 records | Set `OPENAI_API_KEY` in plugin config |
+| **Local** | Free | `uv pip install -e ".[local-embeddings]"` (~80MB model) |
 
-Configure via plugin settings after install. If you have an OpenAI key (most Clay users do), that's the easiest path.
+Configure via plugin settings after install. Switching providers later means re-embedding everything (the vector dimension is fixed at first ingest), so if you know you'll want OpenAI eventually, it's slightly cheaper to start there than to migrate.
+
+**Requires SQLite extension support.** Vector search needs `sqlite-vec`, which needs a Python built with loadable-extension support. pyenv-built Pythons and Apple's `/usr/bin/python3` are not — on those, the plugin runs fine but semantic search is off and says so. Fix by rebuilding the venv on a uv-managed Python:
+
+```bash
+uv venv --python 3.12 --managed-python
+```
+
+`clay-backend-doctor` tells you which situation you're in.
+
+---
+
+## Where Your Data Lives
+
+Both halves of the plugin — the MCP server inside Claude Code and the standalone `clay-webhook-daemon` — resolve the database path the same way:
+
+1. `CLAY_DATA_DIR` if set
+2. otherwise `~/.clay-backend/`
+
+The database is `<data dir>/clay.db`. Because both use the same rule, the daemon and your Claude Code session land on the same file by default no matter which directory you launch them from.
+
+If you override it, override it for both — the `CLAY_DATA_DIR` plugin setting for Claude Code, and `--data-dir` for the daemon:
+
+```bash
+export CLAY_DATA_DIR=~/clay-data          # or
+clay-webhook-daemon --data-dir ~/clay-data
+```
+
+> **Upgrading from v0.1.0?** Earlier builds stored the plugin's database under the Claude Code plugin data directory (`~/.claude/plugins/data/clay-backend-plugin/clay.db`), which the standalone daemon had no way to find. Both halves now default to `~/.clay-backend`. To keep existing records, move the file once:
+>
+> ```bash
+> mkdir -p ~/.clay-backend
+> mv ~/.claude/plugins/data/clay-backend-plugin/clay.db ~/.clay-backend/
+> ```
+>
+> Run `clay-backend-doctor` afterwards to confirm the record count.
+
+A mismatch is the "I ingested 16 records but the plugin says 0" failure. It's now visible from three places rather than silent:
+
+- The daemon prints its absolute DB path at startup.
+- `GET /health` returns `db_path`.
+- `get_analytics` returns `db_path` alongside the counts.
+- `clay-backend-doctor` compares them and tells you if they disagree.
+
+---
+
+## Diagnostics
+
+```bash
+clay-backend-doctor
+```
+
+Or ask Claude: **"run the doctor"** — it's an MCP tool too.
+
+It checks the six things that actually go wrong on first run, and prints the fix for each:
+
+```
+clay-backend doctor
+============================================================
+[PASS] mode
+       local — records stored in SQLite on this machine
+[PASS] sqlite extension support
+       OK — sqlite 3.50.4, sqlite-vec loads
+[WARN] database
+       /Users/you/.clay-backend/clay.db (from default) — 0 record(s): no records yet
+       fix: No records stored. If you expected some, confirm the daemon writes here
+            too — it prints its database path at startup, and it must match.
+[WARN] webhook port
+       a clay-backend daemon owns 127.0.0.1:8742 but writes to /tmp/other/clay.db,
+       while this process reads /Users/you/.clay-backend/clay.db
+       fix: Split-brain database. Start the daemon with the same directory:
+            clay-webhook-daemon --data-dir /Users/you/.clay-backend
+[PASS] embeddings
+       disabled — filters and text search still work
+[PASS] webhook auth
+       WEBHOOK_API_KEY is set — /webhook requires Authorization: Bearer <key>
+============================================================
+4 passed, 2 warning(s), 0 failure(s)
+```
+
+Exit code is `1` only on a hard failure; warnings exit `0`.
+
+---
+
+## Running the Daemon and Claude Code Together
+
+Running `clay-webhook-daemon` 24/7 *and* using Claude Code interactively is a supported setup — they share one database.
+
+When the plugin starts and finds its webhook port already held, it checks who owns it:
+
+- **A clay-backend daemon** → logs `external webhook daemon detected on port N — not starting a second receiver` and carries on. The daemon keeps receiving; the plugin just reads.
+- **Anything else** → logs a clear conflict warning and continues without a webhook endpoint. Set `WEBHOOK_PORT` to something free, or stop the other process.
+
+The daemon does the same check in reverse and refuses to start on a busy port with an actionable message rather than a bare `errno 48`.
 
 ---
 
 ## MCP Tools
 
-9 tools available to Claude:
+10 tools available to Claude:
 
 | Tool | What it does |
 |------|-------------|
@@ -242,9 +413,10 @@ Configure via plugin settings after install. If you have an OpenAI key (most Cla
 | `semantic_search` | Natural language search across records using embeddings. |
 | `get_record` | Fetch a single record by ID. |
 | `list_analysis_types` | Show what types of data are stored with counts. |
-| `get_analytics` | Summary stats, top entities, storage size. |
+| `get_analytics` | Summary stats, top entities, storage size, and the resolved DB path. |
 | `get_webhook_url` | Get the webhook URL and Clay configuration template. |
 | `delete_records` | Remove records by type, date, or ID (requires at least one filter). |
+| `doctor` | Run environment diagnostics — see [Diagnostics](#diagnostics). |
 
 ## Skills
 
@@ -285,6 +457,25 @@ Only `record_id`, `analysis_type`, and `data` are required. Everything else is o
 ## Use Cases
 
 The plugin works with any Clay workflow that produces per-record AI analysis. The `data` field is flexible JSON — the plugin doesn't care what's inside it.
+
+### Pipeline QA — find the rows your workflow silently skipped
+
+The one nobody designs for and everybody needs. Clay workflows fail *per row*, quietly: an enrichment returns nothing, a generation step times out, a column changes shape halfway through a run. In Clay you'd have to eyeball hundreds of rows to notice. Once the rows are in one queryable store, you just ask.
+
+```
+"Which rows in this batch are missing outputs, and is there a pattern?"
+
+→ 3 of 16 rows have an empty emails array — all three are the rows where
+  the title field was blank, so the generation prompt had nothing to work
+  with. One of them is the CFO at Acme, who otherwise matches your
+  best-converting pattern exactly.
+
+  Separately: 2 rows have emails as a string ("['a@x.com']") rather than
+  an array. Those came in before you switched the Clay column to a
+  formula — they'll break anything that iterates them.
+```
+
+The flexible schema is what makes this possible: the plugin never validates a shape, so it faithfully stores the inconsistencies your workflow produced — which is exactly what lets Claude find them. A stricter store would have rejected the malformed rows at ingest and you'd never learn they existed.
 
 ### Sales Coaching
 
@@ -376,10 +567,12 @@ Plugin
 ├── skills/                       Guided workflows (3 skills)
 ├── agents/                       Synthesis subagent
 └── src/clay_backend/
-    ├── server.py                 MCP server (9 tools) + webhook startup
-    ├── webhook_server.py         HTTP POST /webhook + GET /health
+    ├── server.py                 MCP server (10 tools) + webhook startup
+    ├── webhook_server.py         HTTP POST /webhook + GET /health + port probe
     ├── daemon.py                 Standalone webhook CLI
-    ├── database.py               SQLite + sqlite-vec
+    ├── database.py               SQLite + sqlite-vec (degrades without it)
+    ├── config.py                 Tolerant env parsing + shared data-dir rule
+    ├── doctor.py                 First-run diagnostics (CLI + MCP tool)
     ├── models.py                 Pydantic models
     ├── services/
     │   ├── record_service.py     Store, deduplicate, query, aggregate
@@ -390,7 +583,7 @@ Plugin
         ├── openai_provider.py    text-embedding-3-small (1536 dims)
         └── local_provider.py     all-MiniLM-L6-v2 (384 dims)
 
-Data: ~/.claude/plugins/data/clay-backend-plugin/clay.db
+Data: $CLAY_DATA_DIR/clay.db, else ~/.clay-backend/clay.db
 Webhook: http://localhost:8742/webhook
 ```
 
@@ -455,7 +648,7 @@ make smoke
 
 ## Roadmap
 
-- [x] MCP server with 9 tools (store, query, search, analytics)
+- [x] MCP server with 10 tools (store, query, search, analytics, doctor)
 - [x] Pluggable embeddings (OpenAI + local sentence-transformers)
 - [x] Semantic search via sqlite-vec
 - [x] Webhook HTTP server (receives Clay data automatically)
@@ -467,11 +660,15 @@ make smoke
 - [ ] Embeddings support in hosted mode (pgvector)
 - [ ] Email output for scheduled reports
 - [ ] Map-reduce chunking for scheduled synthesis over very large record sets (current: prompt budget with explicit omission note)
-- [ ] `semantic_search` type-filter candidate expansion (sparse types can return fewer than `top_k`)
+- [x] `semantic_search` type-filter candidate expansion (sparse types no longer return fewer than `top_k`)
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md). **Upgrading from v0.1.0 requires moving your database file** — one command, documented there and under [Where Your Data Lives](#where-your-data-lives).
 
 ## Contributing
 
-Issues and PRs welcome. Run `make install && make test && make lint` before submitting — the CI runs the same suite.
+Issues and PRs welcome. Run `make install && make test && make lint` before submitting — the CI runs the same suite. `make doctor` diagnoses a broken local setup.
 
 ## License
 

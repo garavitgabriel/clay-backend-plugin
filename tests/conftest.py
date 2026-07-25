@@ -27,6 +27,34 @@ os.environ.pop("OPENAI_API_KEY", None)
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+def _vec_is_available() -> bool:
+    """Whether this interpreter can load sqlite-vec at all.
+
+    pyenv- and Apple-built CPythons ship without SQLite extension support, so
+    vector search genuinely does not exist there. Everything else still works,
+    and the suite should stay green rather than reporting seven failures for a
+    documented-as-optional feature.
+    """
+    import sqlite3
+
+    db = sqlite3.connect(":memory:")
+    try:
+        db.enable_load_extension(True)
+    except (AttributeError, sqlite3.OperationalError):
+        return False
+    finally:
+        db.close()
+    return True
+
+
+VEC_AVAILABLE = _vec_is_available()
+
+requires_vec = pytest.mark.skipif(
+    not VEC_AVAILABLE,
+    reason="this Python cannot load SQLite extensions — vector search is unavailable",
+)
+
+
 @pytest.fixture(scope="session")
 def fixture_records() -> list[dict]:
     """The 48 synthetic Clay records (24 call_analysis + 24 company_enrichment)."""

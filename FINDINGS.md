@@ -13,7 +13,7 @@ but the dogfood surfaced one real logic bug and several scale/correctness smells
 > - **#5 db-path drift — FIXED** (analytics size derives from `database._get_db_path()` and includes `-wal`/`-shm`)
 > - **#6 scheduler extra undocumented — FIXED** (README + CLAUDE.md document `[local-embeddings,scheduler]`; Makefile `install` already pulled it)
 > - **#7 non-constant-time key compare — FIXED** (`hmac.compare_digest`)
-> - **#8 semantic_search type-filter under-return — OPEN** (roadmap; low impact)
+> - **#8 semantic_search type-filter under-return — FIXED 2026-07-25** (candidate window now widens until `top_k` of the requested type are collected, or until it covers every stored vector; see the note at the end of the 2026-07-24 entry)
 > - **#9 deprecated dimension call — FIXED** (uses `get_embedding_dimension()` when available, falls back for older sentence-transformers)
 >
 > Suite after the pass: 37 passed, lint clean, smoke green.
@@ -120,14 +120,23 @@ silently misleading · **LOW** = cosmetic / hardening.
   the webhook secret. Low risk over network jitter, but trivially hardened.
 - **Fix:** use `hmac.compare_digest`.
 
-## 8. `semantic_search` type-filter can under-return — **LOW**
+## 8. `semantic_search` type-filter can under-return — **LOW** — FIXED 2026-07-25
 
 - **Where:** `search_service.py:55` — when `analysis_type` is set it fetches
   `top_k * 3` KNN candidates then post-filters by type. If the requested type is sparse
   relative to near neighbors of other types, fewer than `top_k` results come back even
   though more matching records exist.
-- **Fix:** loop/expand `k` until `top_k` of the requested type are collected, or filter
-  inside the vec query.
+- **Fix applied:** sqlite-vec can't filter inside a KNN query, so the post-filter stays
+  — but the candidate window now widens (×4 per round) until `top_k` of the requested
+  type are collected, or until it covers every stored vector, at which point the short
+  result really is everything there is. Terminates on both edges: a type with fewer
+  than `top_k` rows returns what exists instead of looping, and an empty vec table
+  short-circuits to `[]`.
+- **Severity in practice was higher than "LOW" suggests.** With 40 near-neighbour
+  records of one type and 3 of another, a `top_k=3` search for the sparse type
+  returned **zero** results — not "fewer than asked for", but nothing at all, which
+  reads as "no such records exist". Regression tests assert the exact record IDs come
+  back; both fail against the old fixed-window code.
 
 ## 9. Deprecation warning in the local embedding provider — **LOW (cosmetic)**
 
@@ -156,3 +165,176 @@ silently misleading · **LOW** = cosmetic / hardening.
   `WEBHOOK_API_KEY` auth path (no-key open / Bearer / X-API-Key / 401 on bad creds).
 - `scheduler._resolve_since()` (days/hours/weeks/months + passthrough) and
   `_fetch_records()` filtering.
+
+---
+
+# 2026-07-25 — Live-webhook hardening pass
+
+Validation against a live Clay table over a public tunnel: records posted from a Clay
+HTTP API column into the webhook, then queried across rows in Claude Code. The storage
+and query paths held; **every defect found was environment or configuration, none was
+logic.** All are fixed below.
+
+## What held up
+
+- **The flexible schema absorbed an unanticipated analysis type with zero code
+  changes.** The workload was outbound *sequence QA* — nothing like the sales-call and
+  enrichment shapes the plugin was built and tested against. No migration, no new
+  columns, no code. The `data`-as-opaque-JSON decision (CLAUDE.md, "Key design
+  decisions") earns its keep the moment it meets a workload nobody modelled.
+- **Webhook dedup makes Clay re-runs safe.** Clay re-processes rows freely; every
+  resend lands as `updated`, not a duplicate.
+- **No-embeddings mode is sufficient at small record counts.** Text search plus
+  filters answered every question asked of a few dozen rows. This contradicted the
+  README, which framed embeddings as near-required — since corrected to "skip until
+  roughly 1k records".
+- **Success responses rendered in the Clay cell are the strongest UX signal in the
+  integration.** `{"ingested":1,"updated":0,"errors":[]}` appearing in a Clay column
+  is how an operator knows the wiring is live. Extended this pass with
+  `total_for_type`, so the column doubles as a progress meter.
+
+## Pipeline QA emerged as a use case
+
+Asked to look across rows, Claude surfaced that the upstream Clay workflow had
+silently failed on several of them —
+
+- 3 records with an empty `emails` array (generation produced nothing),
+- 2 records where `emails` arrived as a *string* rather than an array — a data-shape
+  drift mid-run,
+- 1 stray key present on only some rows,
+- and, most usefully, **a high-value contact who matched the best-converting
+  pattern exactly and had silently received no emails at all.**
+
+None of this is visible inside Clay, where you would be eyeballing rows one at a
+time. It is trivially visible once the rows sit in one queryable store. The schema
+flexibility is what makes it possible: the plugin never validates a shape, so it
+faithfully preserves the inconsistencies — which is exactly what lets them be found.
+A stricter store would have rejected the malformed rows at ingest and their existence
+would never have surfaced.
+
+"Find the rows your workflow silently skipped" is now a headline use case in the
+README, alongside sales coaching.
+
+## Bugs found — all fixed in this pass
+
+### F1. `enable_load_extension` AttributeError kills the daemon on first launch — **HIGH**
+
+- **Where:** `database.py:24` — `db.enable_load_extension(True)` called bare.
+- **What:** pyenv-built CPython (and, confirmed during the fix, Apple's
+  `/usr/bin/python3`) is compiled without loadable-SQLite-extension support. The
+  attribute simply does not exist, so the very first `get_connection()` raised
+  `AttributeError` and the daemon died on a raw traceback. Field workaround was
+  rebuilding the venv with a uv-managed Python.
+- **Why it mattered:** embeddings are documented as optional, but an optional
+  feature was taking down the whole process at import time.
+- **Fixed:** `database._try_load_vec()` catches it and returns an actionable
+  reason; `vec_available()` caches the probe. Ingest, query, webhook, and analytics
+  all work in the degraded mode; `semantic_search` returns the reason plus the
+  `query_records(search_data=...)` fallback. Daemon and MCP both announce the
+  degradation at startup. Verified end-to-end against a real interpreter with the
+  method stripped.
+
+### F2. Empty/unresolved `user_config` env crashes the MCP server — **HIGH**
+
+- **Where:** `webhook_server.py:112` and `server.py:322` —
+  `int(os.environ.get("WEBHOOK_PORT", "8742"))`.
+- **What:** on a clean `--plugin-dir .` launch with no user config set, `.mcp.json`
+  injects `WEBHOOK_PORT` as `""` (or the literal `${user_config.WEBHOOK_PORT}`).
+  `int("")` → `ValueError` → `/mcp` shows `✘ failed` with no diagnostic whatsoever.
+- **Why it mattered:** this is *the* first-run path. The plugin failed for a new
+  user before they had configured anything, and told them nothing.
+- **Fixed:** new `config.py` with `env_str`/`env_int` treating absent, empty, and
+  `${...}` placeholder values as unset. Applied to every user_config-sourced
+  variable: `WEBHOOK_PORT`, `WEBHOOK_HOST`, `WEBHOOK_API_KEY`, `EMBEDDING_PROVIDER`,
+  `OPENAI_API_KEY`, `REMOTE_URL`, `REMOTE_API_KEY`, plus `CLAY_DATA_DIR` and the
+  scheduler's variables. Note `REMOTE_URL` mattered doubly: an unresolved
+  placeholder is truthy, so it would have flipped the plugin into remote mode.
+
+### F3. Split-brain database — daemon and plugin on different files — **HIGH**
+
+- **Where:** `daemon.py:46` defaulted `--data-dir` to `.` (CWD) while `.mcp.json`
+  set `CLAY_DATA_DIR=${CLAUDE_PLUGIN_DATA}`.
+- **What:** records ingested by the daemon landed in `<cwd>/clay.db`; the plugin
+  read a different file and reported 0 records. It only appeared to work when Claude
+  Code happened to be launched from the same directory the daemon ran in — pure luck
+  of the CWD.
+- **Why it mattered:** the worst possible failure mode. No error, no warning, and
+  the symptom ("0 records") points the user at ingestion, which is working fine.
+- **Fixed:** `config.resolve_data_dir()` is now the single resolver for both halves
+  — `CLAY_DATA_DIR`, else the shared default `~/.clay-backend`. Both print the
+  absolute DB path at startup (MCP to **stderr**, since stdout is the MCP
+  transport). `GET /health` and `get_analytics` both return `db_path`. When the MCP
+  server finds a daemon on its port with a *different* `db_path`, it says so
+  explicitly.
+- **Also required a manifest change.** Unifying the resolver was not enough on its
+  own: `.mcp.json` injected `CLAY_DATA_DIR=${CLAUDE_PLUGIN_DATA}`, a path the
+  separate daemon process has no way to discover, so an *installed* plugin would
+  still have split-brained even with one resolver. `CLAY_DATA_DIR` is now a
+  `userConfig` entry that defaults to empty, letting the shared `~/.clay-backend`
+  default apply to both halves. Migration for existing v0.1.0 users is one `mv`,
+  documented in the README.
+
+### F4. Both processes race for the webhook port, silently — **MED**
+
+- **Where:** `server.py:360-362` — the MCP server unconditionally started its
+  webhook thread.
+- **What:** with the standalone daemon already on 8742, the uvicorn bind failed
+  inside a daemon thread. No visible error; the user cannot tell which process owns
+  the port. Harmless in practice by luck, confusing by design.
+- **Why it mattered:** daemon + interactive sessions is a legitimate, documented
+  topology. It should be first-class, not accidental.
+- **Fixed:** `webhook_server.probe_port()` identifies the port's owner via
+  `GET /health`. A clay-backend receiver → log "not starting a second receiver" and
+  continue; anything else → a clear conflict warning naming `WEBHOOK_PORT`. The
+  daemon does the same check in reverse and exits 1 with an actionable message
+  rather than uvicorn's bare `errno 48`.
+
+### F5 (new capability). `clay-backend-doctor` — **first-run diagnostics**
+
+Would have caught all four of the above in under ten seconds. Checks mode, SQLite
+extension support, resolved DB path + per-type counts, webhook port ownership
+(including split-brain detection), embedding provider health, and webhook auth —
+printing the specific fix for each. Available as a CLI and as the `doctor` MCP
+tool. Exits 1 only on hard failure.
+
+## Documentation gaps closed
+
+Every one of these cost trial-and-error time to rediscover:
+
+- **`cloudflared` as the no-account tunnel alternative** to ngrok.
+- **A verify-before-wiring-Clay step**: `curl /health`, then one authenticated
+  `curl -X POST /webhook` smoke record. Splits "tunnel broken" from "API key wrong"
+  from "Clay column misconfigured" before any Clay config exists.
+- **The Clay payload pattern that actually worked**: build the object in a Clay
+  **formula column** via `JSON.stringify({...})` with merge tokens, then reference
+  that single column in the HTTP API body via `Clay.formatForJSON(...)`. Hand-escaped
+  JSON in the body editor is where the string-vs-array drift (see above) came from —
+  the formula column keeps arrays as arrays and escapes quotes and newlines
+  correctly. Exact `Authorization: Bearer` header shape documented.
+- **Embeddings reframed** as "skip until ~1k records" rather than near-required.
+- **Data directory documented** as a first-class concept with its resolution order.
+
+## Follow-ups (not fixed in this batch)
+
+- **Hosted mode is the real answer to tunnel friction.** Free-tier tunnel URLs die
+  with the process and the endpoint is hardcoded in the Clay column, so every restart
+  means editing Clay. A permanent URL makes Clay config a one-time setup. The
+  `hosted/` path is already scaffolded.
+- **`total_for_type` in the webhook response** was added this batch (the Clay column
+  now doubles as a progress meter), but the equivalent is not yet in the MCP
+  `ingest_records` response.
+- **The pattern generalizes beyond Clay.** Per-row AI → webhook → queryable local
+  store describes Gong call analyses, Marketo scoring, Jira triage bots — anything
+  emitting per-record AI output has the same aggregation gap. The plugin is a
+  reference implementation of a general pattern.
+
+## Also closed in this batch
+
+**FINDINGS #8** (`semantic_search` type-filter under-return) was carried over from the
+2026-06-25 validation run as OPEN/low-impact. Writing the regression test showed it was
+worse than catalogued — a sparse type buried under near neighbours returned *zero*
+results, not merely fewer than `top_k`, which is indistinguishable from "no such records
+exist". Fixed alongside the field-test batch; see finding #8 above.
+
+**Suite after this batch:** 99 passed, lint clean, smoke green. On an interpreter
+without SQLite extension support: 89 passed, 10 skipped (`@requires_vec`).

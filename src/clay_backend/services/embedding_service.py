@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-import os
 
+from .. import config
 from ..embeddings.base import EmbeddingProvider
 
 _provider: EmbeddingProvider | None = None
@@ -19,8 +19,8 @@ def get_provider() -> EmbeddingProvider | None:
         return _provider
 
     _initialized = True
-    provider_name = os.environ.get("EMBEDDING_PROVIDER", "").lower()
-    api_key = os.environ.get("OPENAI_API_KEY", "")
+    provider_name = config.embedding_provider_name()
+    api_key = config.openai_api_key()
 
     if provider_name == "openai" and api_key:
         from ..embeddings.openai_provider import OpenAIEmbeddingProvider

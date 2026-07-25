@@ -1,29 +1,104 @@
 """SQLite database initialization and connection management."""
 
-import os
+import logging
 import sqlite3
 from pathlib import Path
 
 import sqlite_vec
 
+from .config import resolve_data_dir
+
+logger = logging.getLogger(__name__)
+
 _DB_PATH: Path | None = None
+
+# Tri-state cache for sqlite-vec availability: None = not probed yet.
+_VEC_AVAILABLE: bool | None = None
+_VEC_REASON: str = ""
+
+NO_EXTENSION_SUPPORT = (
+    "Your Python was built without SQLite extension support (common with pyenv, "
+    "and true of Apple's /usr/bin/python3). "
+    "Semantic search is disabled; ingest, filters, and text search still work. "
+    "To enable it, recreate the venv with a uv-managed Python "
+    "(`uv venv --python 3.12 --managed-python`) or a python.org build."
+)
 
 
 def _get_db_path() -> Path:
     global _DB_PATH
     if _DB_PATH is None:
-        data_dir = os.environ.get("CLAY_DATA_DIR", ".")
-        _DB_PATH = Path(data_dir) / "clay.db"
+        _DB_PATH = resolve_data_dir() / "clay.db"
         _DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     return _DB_PATH
 
 
+def get_db_path() -> str:
+    """Absolute path of the SQLite database, as a string.
+
+    Public counterpart to `_get_db_path` — used for startup logging and the
+    `db_path` field on analytics so a daemon/MCP split-brain is self-diagnosing.
+    """
+    return str(_get_db_path())
+
+
+def _try_load_vec(db: sqlite3.Connection) -> tuple[bool, str]:
+    """Attempt to load sqlite-vec into a connection.
+
+    Returns (loaded, reason). A failure is never fatal: embeddings are optional,
+    so the plugin degrades to no-embeddings mode rather than dying at import.
+    """
+    try:
+        db.enable_load_extension(True)
+    except AttributeError:
+        return False, NO_EXTENSION_SUPPORT
+    except sqlite3.OperationalError as e:
+        return False, f"SQLite refused to enable extension loading: {e}"
+
+    try:
+        sqlite_vec.load(db)
+    except Exception as e:
+        return False, f"sqlite-vec failed to load: {e}"
+    finally:
+        try:
+            db.enable_load_extension(False)
+        except (AttributeError, sqlite3.OperationalError):
+            pass
+
+    return True, ""
+
+
+def vec_available() -> bool:
+    """Whether vector search is usable in this interpreter.
+
+    Probed once on first call and cached. False means this Python cannot load
+    SQLite extensions (see `vec_unavailable_reason` for the actionable fix).
+    """
+    global _VEC_AVAILABLE
+    if _VEC_AVAILABLE is None:
+        get_connection().close()
+    return bool(_VEC_AVAILABLE)
+
+
+def vec_unavailable_reason() -> str:
+    """Human-readable reason vector search is off, or '' when it is available."""
+    vec_available()
+    return _VEC_REASON
+
+
 def get_connection() -> sqlite3.Connection:
-    """Create a new SQLite connection with sqlite-vec loaded."""
+    """Create a new SQLite connection with sqlite-vec loaded when possible."""
+    global _VEC_AVAILABLE, _VEC_REASON
+
     db = sqlite3.connect(str(_get_db_path()))
-    db.enable_load_extension(True)
-    sqlite_vec.load(db)
-    db.enable_load_extension(False)
+    loaded, reason = _try_load_vec(db)
+
+    if _VEC_AVAILABLE is None:
+        _VEC_AVAILABLE = loaded
+        _VEC_REASON = reason
+        if not loaded:
+            logger.warning("Vector search unavailable — %s", reason)
+
     db.execute("PRAGMA journal_mode=WAL")
     db.execute("PRAGMA foreign_keys=ON")
     db.row_factory = sqlite3.Row
@@ -68,11 +143,15 @@ def init_db() -> None:
         db.close()
 
 
-def init_vec_table(dimension: int) -> None:
+def init_vec_table(dimension: int) -> bool:
     """Create the sqlite-vec virtual table for vector search.
 
     The dimension is fixed at creation time and must match the embedding provider.
+    Returns False (without raising) when this Python cannot load sqlite-vec.
     """
+    if not vec_available():
+        return False
+
     db = get_connection()
     try:
         # Check if vec table already exists
@@ -88,7 +167,7 @@ def init_vec_table(dimension: int) -> None:
                     f"but provider requires {dimension}. "
                     f"Run delete_records to clear data and re-initialize."
                 )
-            return
+            return True
 
         db.execute(
             f"CREATE VIRTUAL TABLE IF NOT EXISTS vec_records USING vec0("
@@ -101,6 +180,7 @@ def init_vec_table(dimension: int) -> None:
             (str(dimension),),
         )
         db.commit()
+        return True
     finally:
         db.close()
 

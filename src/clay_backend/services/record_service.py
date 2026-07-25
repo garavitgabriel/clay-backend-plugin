@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import uuid
 from datetime import datetime, timezone
 
-from ..database import get_connection, get_vec_dimension, init_vec_table
+from ..database import (
+    get_connection,
+    get_vec_dimension,
+    init_vec_table,
+    vec_available,
+    vec_unavailable_reason,
+)
 from ..models import (
     AnalysisTypeSummary,
     AnalyticsSummary,
@@ -17,6 +24,8 @@ from ..models import (
     RecordInput,
 )
 from . import embedding_service
+
+logger = logging.getLogger(__name__)
 
 
 def _now_iso() -> str:
@@ -49,8 +58,18 @@ def ingest_records(
     db = get_connection()
     result = IngestResult()
 
-    # Check if embeddings are available and ensure vec table exists
+    # Check if embeddings are available and ensure vec table exists.
+    # A configured provider is still useless if this Python can't load
+    # sqlite-vec — degrade to no-embeddings ingest instead of failing.
     provider = embedding_service.get_provider()
+    if provider is not None and not vec_available():
+        logger.warning(
+            "Embedding provider configured but vector storage is unavailable — "
+            "ingesting without embeddings. %s",
+            vec_unavailable_reason(),
+        )
+        provider = None
+
     if provider is not None:
         dimension = provider.dimension
         if get_vec_dimension() is None:
@@ -267,6 +286,19 @@ def get_record(record_id: str) -> Record | None:
         db.close()
 
 
+def count_by_type(analysis_type: str) -> int:
+    """Total stored records for one analysis_type."""
+    db = get_connection()
+    try:
+        row = db.execute(
+            "SELECT COUNT(*) as cnt FROM analysis_records WHERE analysis_type = ?",
+            (analysis_type,),
+        ).fetchone()
+        return row["cnt"]
+    finally:
+        db.close()
+
+
 def list_analysis_types() -> list[AnalysisTypeSummary]:
     """Get summary of all analysis types stored."""
     db = get_connection()
@@ -341,9 +373,9 @@ def get_analytics(
         ).fetchall()
 
         # Get DB file size from the same path connections use (incl. WAL/SHM files)
-        from ..database import _get_db_path
+        from ..database import get_db_path
 
-        db_path = str(_get_db_path())
+        db_path = get_db_path()
         size_bytes = sum(
             os.path.getsize(p)
             for p in (db_path, f"{db_path}-wal", f"{db_path}-shm")
@@ -367,6 +399,7 @@ def get_analytics(
                 for r in top_entities
             ],
             storage_size_mb=round(size_mb, 2),
+            db_path=db_path,
         )
     finally:
         db.close()

@@ -22,7 +22,13 @@ def client():
 def test_health(client, clay_db):
     resp = client.get("/health")
     assert resp.status_code == 200
-    assert resp.json()["status"] == "ok"
+    body = resp.json()
+    assert body["status"] == "ok"
+    assert body["service"] == "clay-backend-webhook"
+    # The resolved DB path makes a daemon/plugin mismatch visible over the wire.
+    from clay_backend.database import get_db_path
+
+    assert body["db_path"] == get_db_path()
 
 
 def test_webhook_single_record(client, clay_db):
@@ -90,6 +96,30 @@ def test_webhook_auth_required_when_key_set(client, clay_db, monkeypatch):
     resp = client.post("/webhook", json=payload2, headers={"X-API-Key": "s3cret"})
     assert resp.status_code == 200
     assert resp.json()["ingested"] == 1
+
+
+def test_webhook_response_reports_running_total(client, clay_db):
+    """The response lands in a Clay cell, so it doubles as a progress meter."""
+    for i in range(3):
+        resp = client.post(
+            "/webhook",
+            json={
+                "record_id": f"meter-{i}",
+                "analysis_type": "sequence_qa",
+                "data": {"i": i},
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["total_for_type"] == {"sequence_qa": i + 1}
+
+    # A re-send updates in place — the total must not double-count.
+    resp = client.post(
+        "/webhook",
+        json={"record_id": "meter-0", "analysis_type": "sequence_qa", "data": {"i": 0}},
+    )
+    body = resp.json()
+    assert body["updated"] == 1
+    assert body["total_for_type"] == {"sequence_qa": 3}
 
 
 def test_webhook_no_auth_when_key_unset(client, clay_db, monkeypatch):
