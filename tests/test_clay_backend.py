@@ -7,6 +7,7 @@ not trivial asserts. See FINDINGS.md for bugs these tests surfaced.
 from __future__ import annotations
 
 import pytest
+from conftest import requires_vec
 
 from clay_backend.database import get_connection, get_vec_dimension, init_vec_table
 from clay_backend.models import RecordInput
@@ -48,6 +49,13 @@ def test_ingest_records_basic(clay_db, fixture_records):
     assert result.ingested == 48
     assert result.updated == 0
     assert result.errors == []
+    assert len(record_service.query_records(limit=200)) == 48
+
+
+@requires_vec
+def test_ingest_records_populates_the_vec_table(clay_db, fixture_records):
+    """Only meaningful where sqlite-vec loads; ingest itself degrades without it."""
+    record_service.ingest_records([RecordInput(**r) for r in fixture_records])
 
     # Every ingested record got an embedding row in the vec table.
     assert _vec_count() == 48
@@ -217,6 +225,7 @@ def test_query_limit_capped_at_200(ingested):
 # --------------------------------------------------------------------------- #
 # semantic search
 # --------------------------------------------------------------------------- #
+@requires_vec
 def test_semantic_search_ranks_results(ingested):
     results = search_service.semantic_search(
         "deep technical dive into the API and embeddings integration", top_k=5
@@ -234,6 +243,7 @@ def test_semantic_search_ranks_results(ingested):
     assert "technical" in top_summary or "api" in top_summary
 
 
+@requires_vec
 def test_semantic_search_filtered_by_type(ingested):
     results = search_service.semantic_search(
         "company is a strong ICP fit, well funded", analysis_type="company_enrichment", top_k=5
@@ -242,6 +252,108 @@ def test_semantic_search_filtered_by_type(ingested):
     assert all(
         r["record"]["analysis_type"] == "company_enrichment" for r in results
     )
+
+
+@requires_vec
+def test_semantic_search_finds_a_sparse_type_buried_under_near_neighbours(clay_db):
+    """FINDINGS #8: a fixed candidate window under-returns for sparse types.
+
+    40 records of one type sit right on top of the query semantically; the 3
+    records of the type actually asked for are nowhere near the front of the
+    KNN list. A `top_k * 3` window is all wrong-type, so the old code returned
+    nothing at all despite three perfectly good matches being stored.
+    """
+    # Noise sits nearer the query than the sparse type, so the ordering is
+    # deterministic rather than a tie-break coin flip.
+    noise = [
+        RecordInput(
+            record_id=f"noise-{i}",
+            analysis_type="call_analysis",
+            data={"summary": "budget discussion and pricing"},
+        )
+        for i in range(40)
+    ]
+    sparse = [
+        RecordInput(
+            record_id=f"sparse-{i}",
+            analysis_type="lead_scoring",
+            data={"summary": "the buyer raised budget constraints late in the call"},
+        )
+        for i in range(3)
+    ]
+    result = record_service.ingest_records(noise + sparse)
+    assert result.ingested == 43
+
+    results = search_service.semantic_search(
+        "budget discussion and pricing", analysis_type="lead_scoring", top_k=3
+    )
+
+    assert len(results) == 3
+    assert all(r["record"]["analysis_type"] == "lead_scoring" for r in results)
+    assert {r["record"]["record_id"] for r in results} == {
+        "sparse-0",
+        "sparse-1",
+        "sparse-2",
+    }
+
+
+@requires_vec
+def test_semantic_search_returns_all_available_when_fewer_than_top_k(clay_db):
+    """Expansion must terminate, not spin, when the type simply has fewer rows."""
+    record_service.ingest_records(
+        [
+            RecordInput(
+                record_id=f"few-{i}",
+                analysis_type="rare_type",
+                data={"summary": "a distinctive one-off observation"},
+            )
+            for i in range(2)
+        ]
+        + [
+            RecordInput(
+                record_id=f"bulk-{i}",
+                analysis_type="common_type",
+                data={"summary": "a distinctive one-off observation"},
+            )
+            for i in range(30)
+        ]
+    )
+
+    results = search_service.semantic_search(
+        "distinctive observation", analysis_type="rare_type", top_k=10
+    )
+
+    # Only two exist — return both rather than looping forever chasing ten.
+    assert len(results) == 2
+    assert all(r["record"]["analysis_type"] == "rare_type" for r in results)
+
+
+@requires_vec
+def test_semantic_search_unfiltered_still_respects_top_k(clay_db):
+    """The expansion loop must not over-return when no type filter is set."""
+    record_service.ingest_records(
+        [
+            RecordInput(
+                record_id=f"cap-{i}",
+                analysis_type="call_analysis",
+                data={"summary": f"observation number {i}"},
+            )
+            for i in range(20)
+        ]
+    )
+
+    assert len(search_service.semantic_search("observation", top_k=5)) == 5
+
+
+@requires_vec
+def test_semantic_search_on_empty_vec_table_returns_nothing(clay_db):
+    """No vectors stored at all — no results, no crash, no infinite loop."""
+    record_service.ingest_records(
+        [RecordInput(record_id="x", analysis_type="t", data={"a": 1})]
+    )
+    record_service.delete_records(analysis_type="t")
+
+    assert search_service.semantic_search("anything", top_k=5) == []
 
 
 def test_semantic_search_without_embeddings_returns_error(clay_db):
@@ -254,6 +366,7 @@ def test_semantic_search_without_embeddings_returns_error(clay_db):
 # --------------------------------------------------------------------------- #
 # embedding dimension lock
 # --------------------------------------------------------------------------- #
+@requires_vec
 def test_embedding_dimension_lock(ingested):
     assert get_vec_dimension() == 384
 
@@ -282,6 +395,16 @@ def test_get_analytics(ingested):
     assert a.storage_size_mb > 0
 
 
+def test_get_analytics_reports_the_db_path(ingested):
+    """Self-diagnosing split-brain: the counts say which clay.db they came from."""
+    from clay_backend.database import get_db_path
+
+    a = record_service.get_analytics()
+    assert a.db_path == get_db_path()
+    assert a.db_path.endswith("clay.db")
+    assert str(ingested) in a.db_path
+
+
 def test_get_analytics_filtered(ingested):
     a = record_service.get_analytics(analysis_type="call_analysis")
     assert a.total_records == 24
@@ -306,6 +429,7 @@ def test_delete_requires_filter(ingested):
     assert record_service.get_analytics().total_records == 48
 
 
+@requires_vec
 def test_delete_by_type_clears_vec_rows(ingested):
     before = _vec_count()
     assert before == 48

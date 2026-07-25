@@ -1,4 +1,4 @@
-.PHONY: install test smoke fixtures lint
+.PHONY: install test smoke fixtures lint doctor
 
 # Local-mode validation targets. Requires `uv`.
 
@@ -20,3 +20,8 @@ smoke:
 
 lint:
 	uv run ruff check src/ tests/
+
+# First-run diagnostics: extension support, db path + counts, port ownership,
+# embeddings, webhook auth. Exits 1 only on a hard failure.
+doctor:
+	uv run clay-backend-doctor

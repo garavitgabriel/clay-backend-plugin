@@ -2,20 +2,20 @@
 
 from __future__ import annotations
 
-import os
-
 import httpx
+
+from .. import config
 
 
 def _base_url() -> str:
-    url = os.environ.get("REMOTE_URL", "").rstrip("/")
+    url = config.remote_url()
     if not url:
         raise RuntimeError("REMOTE_URL not set")
     return url
 
 
 def _headers() -> dict:
-    api_key = os.environ.get("REMOTE_API_KEY", "")
+    api_key = config.remote_api_key()
     if api_key:
         return {"Authorization": f"Bearer {api_key}"}
     return {}
@@ -26,7 +26,7 @@ def _client() -> httpx.Client:
 
 
 def is_remote() -> bool:
-    return bool(os.environ.get("REMOTE_URL", ""))
+    return bool(config.remote_url())
 
 
 def ingest_records(records: list[dict], embed_fields: list[str] | None = None) -> dict:

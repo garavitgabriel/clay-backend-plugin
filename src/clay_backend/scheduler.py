@@ -19,21 +19,22 @@ import yaml
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 
+from . import config
 from .services import record_service
 
 logger = logging.getLogger(__name__)
 
-SCHEDULES_PATH = os.environ.get("SCHEDULES_PATH", "schedules.yaml")
+SCHEDULES_PATH = config.env_str("SCHEDULES_PATH", "schedules.yaml")
 SKILLS_DIR = Path(__file__).parent.parent.parent / "skills"
 
 # Default model for scheduled synthesis. Override per-schedule with `model:`
 # in schedules.yaml, or globally via CLAY_SCHEDULER_MODEL.
-DEFAULT_MODEL = os.environ.get("CLAY_SCHEDULER_MODEL", "claude-sonnet-5")
+DEFAULT_MODEL = config.env_str("CLAY_SCHEDULER_MODEL", "claude-sonnet-5")
 
 # Rough guard against overflowing the model's context window: serialized records
 # beyond this many characters are dropped (most-recent kept) and the synthesis
 # prompt is told how many were omitted. ~4 chars/token → ~100k tokens of records.
-PROMPT_CHAR_BUDGET = int(os.environ.get("CLAY_PROMPT_CHAR_BUDGET", "400000"))
+PROMPT_CHAR_BUDGET = config.env_int("CLAY_PROMPT_CHAR_BUDGET", 400_000)
 
 
 def _load_skill(skill_name: str) -> str:
@@ -104,7 +105,7 @@ def _fetch_records(context: dict) -> list[dict]:
 
 def _call_anthropic(skill_prompt: str, records: list[dict], schedule: dict) -> str:
     """Call the Anthropic API with the skill prompt and records."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+    api_key = config.env_str("ANTHROPIC_API_KEY")
     if not api_key:
         raise ValueError("ANTHROPIC_API_KEY not set — required for scheduled synthesis")
 
@@ -283,9 +284,9 @@ def load_schedules(path: str | None = None) -> list[dict]:
         return []
 
     with open(path) as f:
-        config = yaml.safe_load(f)
+        doc = yaml.safe_load(f)
 
-    return config.get("schedules", []) if config else []
+    return doc.get("schedules", []) if doc else []
 
 
 def start_scheduler(schedules_path: str | None = None) -> BackgroundScheduler | None:

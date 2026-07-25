@@ -21,6 +21,9 @@ CLAY_DATA_DIR=/tmp/test EMBEDDING_PROVIDER=local clay-mcp
 # Run standalone webhook daemon
 clay-webhook-daemon --port 8742 --data-dir /tmp/test
 
+# Diagnose a broken setup (also available as the `doctor` MCP tool)
+clay-backend-doctor
+
 # Test plugin locally with Claude Code
 claude --plugin-dir .
 
@@ -53,6 +56,8 @@ webhook_server.py (HTTP POST /webhook)  ←→  services/record_service.py (same
 - Embeddings are generated in batch after record commit, stored in a separate `vec_records` virtual table.
 - sqlite-vec uses `WHERE embedding MATCH ? AND k = ?` syntax (not LIMIT) for KNN queries.
 - The embedding dimension is fixed at vec table creation. Switching providers requires re-embedding all records.
+- Vector search is **optional and probed at runtime**. pyenv-built Pythons and Apple's `/usr/bin/python3` have no `Connection.enable_load_extension`, so sqlite-vec can't load. `database.vec_available()` caches that probe; ingest and search degrade to no-embeddings mode instead of raising. Tests that need vectors carry `@requires_vec` (see `tests/conftest.py`) so the suite is green on those interpreters too.
+- The MCP server and the standalone daemon can both be running. Each probes the webhook port first (`webhook_server.probe_port`) and identifies the owner via `GET /health`; a clay-backend receiver means "don't start a second one", anything else is a logged conflict.
 - Claude itself is the synthesis engine — there is no LLM abstraction layer. MCP tools serve data, Claude reasons over it.
 
 **Plugin components:**
@@ -65,11 +70,24 @@ webhook_server.py (HTTP POST /webhook)  ←→  services/record_service.py (same
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| `CLAY_DATA_DIR` | Directory for clay.db | `.` |
+| `CLAY_DATA_DIR` | Directory for clay.db | `~/.clay-backend` |
 | `EMBEDDING_PROVIDER` | `openai`, `local`, or empty (disabled) | empty |
 | `OPENAI_API_KEY` | Required if EMBEDDING_PROVIDER=openai | — |
 | `WEBHOOK_PORT` | HTTP webhook server port | `8742` |
+| `WEBHOOK_HOST` | Webhook bind address | `127.0.0.1` |
 | `WEBHOOK_API_KEY` | If set, webhook requires `Authorization: Bearer <key>` or `X-API-Key: <key>` | — |
+| `REMOTE_URL` | If set, use the hosted service instead of local SQLite | — |
+
+**All env reads must go through `config.py`.** Never call `os.environ.get` for a
+user-facing setting. The plugin loader injects unset `userConfig` values as `""`
+or as the literal `"${user_config.NAME}"`, so `int(os.environ.get("WEBHOOK_PORT",
+"8742"))` raises ValueError on a clean first launch and the MCP server shows
+`✘ failed` with no diagnostic. `config.env_str` / `config.env_int` treat all
+three shapes (absent, empty, placeholder) as unset.
+
+`config.resolve_data_dir()` is the single source of truth for the database
+location — the MCP server, the daemon, and the doctor all use it, so the two
+halves of the plugin can't silently write to different `clay.db` files.
 
 ## Embedding Providers
 

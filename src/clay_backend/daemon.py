@@ -8,7 +8,9 @@ Usage:
 
 Run this in the background to collect Clay webhooks 24/7,
 even when Claude Code isn't open. Data accumulates in the same
-SQLite database the plugin reads from.
+SQLite database the plugin reads from — both resolve CLAY_DATA_DIR first and
+fall back to the same shared default (~/.clay-backend), so the daemon and the
+plugin never end up on different clay.db files by accident.
 
 With --schedules, the daemon also runs automated analysis on cron
 (e.g., weekly coaching digests to Slack).
@@ -24,8 +26,9 @@ import sys
 
 import uvicorn
 
-from .database import init_db
-from .webhook_server import DEFAULT_PORT, app
+from . import config
+from .database import get_db_path, init_db, vec_available, vec_unavailable_reason
+from .webhook_server import app, probe_port
 
 logger = logging.getLogger("clay-webhook-daemon")
 
@@ -37,25 +40,28 @@ def main():
     parser.add_argument(
         "--port",
         type=int,
-        default=int(os.environ.get("WEBHOOK_PORT", str(DEFAULT_PORT))),
-        help=f"Port to listen on (default: {DEFAULT_PORT})",
+        default=config.webhook_port(),
+        help=f"Port to listen on (default: {config.DEFAULT_WEBHOOK_PORT})",
     )
     parser.add_argument(
         "--data-dir",
         type=str,
-        default=os.environ.get("CLAY_DATA_DIR", "."),
-        help="Directory for the SQLite database (default: current dir)",
+        default=str(config.resolve_data_dir()),
+        help=(
+            "Directory for the SQLite database "
+            f"(default: CLAY_DATA_DIR, else {config.DEFAULT_DATA_DIR})"
+        ),
     )
     parser.add_argument(
         "--host",
         type=str,
-        default=os.environ.get("WEBHOOK_HOST", "127.0.0.1"),
+        default=config.webhook_host(),
         help="Host to bind to (default: 127.0.0.1; use 0.0.0.0 to expose beyond this machine)",
     )
     parser.add_argument(
         "--schedules",
         type=str,
-        default=os.environ.get("SCHEDULES_PATH", ""),
+        default=config.schedules_path(),
         help="Path to schedules.yaml for automated analysis (optional)",
     )
     args = parser.parse_args()
@@ -69,6 +75,40 @@ def main():
     )
 
     init_db()
+    db_path = get_db_path()
+
+    # Fail fast and legibly on a busy port. uvicorn catches its own bind error
+    # and prints a bare errno, which leaves the operator guessing whether the
+    # port belongs to another daemon, a Claude Code session, or something else.
+    owner, health = probe_port(args.host, args.port)
+    if owner != "free":
+        who = (
+            "another clay-backend webhook receiver"
+            if owner == "clay"
+            else "a process that is not a clay-backend receiver"
+        )
+        print(
+            f"\nPort {args.host}:{args.port} is already held by {who}.",
+            file=sys.stderr,
+        )
+        if owner == "clay":
+            other_db = health.get("db_path", "unknown")
+            print(
+                f"It writes to {other_db}.\n"
+                f"If that is the receiver you want, leave it running — a second one "
+                f"is not needed.\n"
+                f"Otherwise stop it, or start this one on another port: "
+                f"clay-webhook-daemon --port {args.port + 1}",
+                file=sys.stderr,
+            )
+        else:
+            print(
+                f"Free the port, or start on another one: "
+                f"clay-webhook-daemon --port {args.port + 1}\n"
+                f"Inspect the current owner with: lsof -i :{args.port}",
+                file=sys.stderr,
+            )
+        sys.exit(1)
 
     # Start scheduler if config provided
     scheduler = None
@@ -79,17 +119,21 @@ def main():
         scheduler = start_scheduler(args.schedules)
         if scheduler:
             jobs = scheduler.get_jobs()
-            print(f"Scheduler: {len(jobs)} job(s) loaded from {args.schedules}")
+            print(f"Scheduler: {len(jobs)} job(s) loaded from {args.schedules}", flush=True)
             for job in jobs:
-                print(f"  - {job.name}: next run at {job.next_run_time}")
+                print(f"  - {job.name}: next run at {job.next_run_time}", flush=True)
         else:
-            print(f"Scheduler: no schedules found in {args.schedules}")
+            print(f"Scheduler: no schedules found in {args.schedules}", flush=True)
 
-    print(f"\nClay webhook daemon starting on http://{args.host}:{args.port}")
-    print(f"Data directory: {args.data_dir}")
-    print(f"Webhook endpoint: http://{args.host}:{args.port}/webhook")
-    print(f"Health check:     http://{args.host}:{args.port}/health")
-    print("Press Ctrl+C to stop\n")
+    print(f"\nClay webhook daemon starting on http://{args.host}:{args.port}", flush=True)
+    # The absolute DB path is the single most useful startup line: a daemon and
+    # a plugin session on different paths is the "0 records" failure mode.
+    print(f"Database:         {db_path}", flush=True)
+    print(f"Webhook endpoint: http://{args.host}:{args.port}/webhook", flush=True)
+    print(f"Health check:     http://{args.host}:{args.port}/health", flush=True)
+    if not vec_available():
+        print(f"Semantic search:  disabled — {vec_unavailable_reason()}", flush=True)
+    print("Press Ctrl+C to stop\n", flush=True)
 
     def handle_signal(sig, frame):
         if scheduler:

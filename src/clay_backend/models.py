@@ -65,6 +65,13 @@ class AnalyticsSummary(BaseModel):
     records_by_type: list[AnalysisTypeSummary]
     top_entities: list[dict]
     storage_size_mb: float
+    db_path: str | None = Field(
+        None,
+        description=(
+            "Absolute path of the SQLite database these counts came from. "
+            "Makes a daemon/plugin data-directory mismatch self-diagnosing."
+        ),
+    )
 
 
 class DeleteResult(BaseModel):
